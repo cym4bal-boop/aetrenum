@@ -1,0 +1,52 @@
+/* Slider-free swipe control (non-advanced adjustments) */
+.pp-swipe-ctl {
+  position: relative; flex: 1; min-width: 96px; height: 44px; border-radius: 22px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 16px;
+  background: var(--glass-control); border: 1px solid var(--glass-line);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  overflow: hidden; touch-action: none; user-select: none; cursor: ew-resize;
+  transition: transform 160ms cubic-bezier(.2,.8,.2,1), box-shadow 160ms ease;
+}
+.pp-swipe-ctl.is-active { transform: scale(1.02); box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 0 2px color-mix(in srgb, var(--pp-active) 45%, transparent); }
+.pp-swipe-fill {
+  position: absolute; inset: 0; pointer-events: none;
+  background: var(--swipe-bg); opacity: .28;
+  clip-path: inset(0 calc((1 - var(--t)) * 100%) 0 0);
+  transition: clip-path 60ms linear;
+}
+.pp-swipe-ctl.is-active .pp-swipe-fill { transition: none; }
+.pp-swipe-label { position: relative; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.pp-swipe-value { position: relative; font-variant-numeric: tabular-nums; font-size: 14px; }
+.pp-adj-group .pp-swipe-ctl + .pp-swipe-ctl { margin-top: 8px; }
+.pp-adj-readout .pp-swipe-ctl { height: 40px; }
+
+/* Advanced options open/close smoothly */
+.pp-adj-collapse {
+  display: grid; grid-template-rows: 0fr; opacity: 0;
+  transition: grid-template-rows 260ms cubic-bezier(.2,.8,.2,1), opacity 220ms cubic-bezier(.2,.8,.2,1);
+}
+.pp-adj-collapse[data-open="true"] { grid-template-rows: 1fr; opacity: 1; }
+.pp-adj-collapse[data-open="false"] { pointer-events: none; }
+.pp-adj-collapse-inner { min-height: 0; overflow: hidden; }
+
+/* layer-menu sub list slides in */
+.pp-lb-menu-enter { animation: pp-lbm-in 220ms cubic-bezier(.2,.8,.2,1) both; }
+@keyframes pp-lbm-in { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-adj-collapse, .pp-swipe-ctl, .pp-swipe-fill { transition: none !important; }
+  .pp-lb-menu-enter { animation: none; }
+}
+.pp-adj-collapse[data-open="false"] { margin-top: -8px; }
+
+/* Procreate-style compact readout: name, amount in a circle, done tick — no extra caption line */
+.pp-adj { padding: 6px 8px 6px; gap: 6px; }
+.pp-adj-readout { min-height: 48px; padding: 0 0 0 14px; gap: 10px; }
+.pp-adj-title b { font-size: 15px; font-weight: 600; line-height: 1.2; }
+.pp-adj-amount {
+  width: 44px; height: 44px; flex: none; border-radius: 50%; display: grid; place-items: center; margin-left: auto;
+  font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--pp-ink) 9%, transparent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--pp-ink) 22%, transparent);
+}
+.pp-adj-amount + .pp-adj-tick { margin-left: 0; }
+.pp-adj-readout .pp-adj-tick { width: 44px; height: 44px; }

@@ -1,24 +1,38 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, ClientOnly } from "@tanstack/react-router";
+import Studio from "@/components/paint/Studio";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
+const APP_TITLE = "Aeternum Paint Studio";
+const APP_DESCRIPTION =
+  "A Procreate-grade touch-first digital painting and illustration studio.";
+
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: APP_TITLE },
+      { name: "description", content: APP_DESCRIPTION },
+      { property: "og:title", content: APP_TITLE },
+      { property: "og:description", content: APP_DESCRIPTION },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+      {
+        name: "viewport",
+        content:
+          "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover",
+      },
+      { name: "theme-color", content: "#121214" },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
 function Index() {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
+    <ClientOnly
+      fallback={
+        <div className="fixed inset-0 bg-[#121214]" aria-hidden="true" />
+      }
     >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+      <Studio />
+    </ClientOnly>
   );
 }
