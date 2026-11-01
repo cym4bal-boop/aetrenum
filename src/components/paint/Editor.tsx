@@ -532,6 +532,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
 
   const render = () => {
     renderQueued.current = false;
+    if (navListeners.current.size) navListeners.current.forEach((f) => f());
     if (overlayLive.current) setViewTick((t) => (t + 1) % 1e6);
     const c = viewCanvas.current;
     if (!c || !layersRef.current.length) return;
