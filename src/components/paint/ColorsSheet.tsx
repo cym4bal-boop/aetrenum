@@ -465,11 +465,11 @@ function Palettes({ palettes, color, paletteView, onPaletteView, onPalettes, onC
 }
 
 export function GradientSlider({ value, onChange, onCommit, background, thin, knobColor, label = "Color value" }: { label?: string; value: number; onChange: (v: number) => void; onCommit?: () => void; background: string; thin?: boolean; knobColor?: string }) {
-  const pad = usePad((x, _y, rect) => onChange(clamp(x / rect.width)), () => onCommit?.());
+  const pad = usePad((x, _y, rect) => onChange(clamp((x - 15) / Math.max(1, rect.width - 30))), () => onCommit?.());
   return (
     <div className={`pp-gslider ${thin ? 'thin' : ''}`} {...pad} role="slider" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(value * 100)} tabIndex={0} onKeyDown={(e) => { if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) { e.preventDefault(); onChange(e.key === "Home" ? 0 : e.key === "End" ? 1 : clamp(value + (e.key === "ArrowRight" ? .01 : -.01))); onCommit?.(); } }}>
       <div className="pp-gslider-track" style={{ background }} />
-      <span className="pp-gslider-knob" style={{ left: `${value * 100}%`, background: knobColor }} />
+      <span className="pp-gslider-knob" style={{ '--gv': value.toFixed(4), background: knobColor } as React.CSSProperties} />
     </div>
   );
 }
