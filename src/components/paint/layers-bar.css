@@ -1,0 +1,28 @@
+/* Layer bar dismissal (drag down past the screen edge, like the floating colour picker) */
+.pp-lb.pp-lb-leaving {
+  transition: transform 260ms cubic-bezier(.4,0,1,1), opacity 260ms ease !important;
+  transform: translateY(110vh) !important;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Long layer names: clipped, single line, endless rightward scroll */
+.pp-marquee { display: block; overflow: hidden; white-space: nowrap; min-width: 0; max-width: 100%; }
+.pp-marquee.run { mask-image: linear-gradient(90deg, transparent 0, #000 8px, #000 calc(100% - 8px), transparent); -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 8px, #000 calc(100% - 8px), transparent); }
+.pp-marquee.run .pp-marquee-inner { display: inline-flex; animation: pp-marquee-loop linear infinite !important; will-change: transform; }
+.pp-mq-copy { flex: none; }
+.pp-marquee.run .pp-mq-copy { padding-right: var(--pp-mq-gap, 28px); }
+@keyframes pp-marquee-loop { from { transform: translateX(var(--pp-mq-from)); } to { transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) { .pp-marquee.run .pp-marquee-inner { animation: none !important; } }
+
+/* secondary selection (swipe right on a layer) */
+.pp-lb-row.secondary::before {
+  content: ""; position: absolute; inset: 2px; border-radius: inherit; pointer-events: none;
+  background: color-mix(in srgb, var(--pp-active) 22%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--pp-active) 55%, transparent);
+  animation: pp-sec-in 200ms cubic-bezier(.2,.8,.2,1);
+}
+.pp-lb-row.secondary { position: relative; }
+@keyframes pp-sec-in { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: none; } }
+.pp-lb-scroll { touch-action: pan-y; }
+.pp-lb-textbadge { position: absolute; left: 3px; bottom: 3px; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 6px; font: 700 11px/16px system-ui, sans-serif; text-align: center; color: #fff; background: color-mix(in srgb, var(--pp-active) 85%, #000); pointer-events: none; }

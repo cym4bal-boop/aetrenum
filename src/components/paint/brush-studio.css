@@ -1,0 +1,42 @@
+/* Brush Studio button backgrounds. The global paint-UI reset strips
+ * backgrounds from .pp-button with !important, so every surface lives on an
+ * ::after layer beneath the button content (same approach as selected states). */
+.ap-bs .pp-button:not([role='switch']) { position: relative; isolation: isolate; }
+.ap-bs .pp-button:not([role='switch'])::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--pp-ink) 8%, var(--glass-control, transparent));
+  border: 1px solid var(--glass-line, transparent);
+  box-shadow: inset 0 1px 0 var(--glass-highlight, transparent);
+  transition: background-color 0.18s var(--pp-ease, ease);
+}
+/* round icon buttons on the drawing pad pill and the rail */
+.ap-bs .ap-bs-pill .pp-button, .ap-bs .ap-bs-cat { border-radius: 50% !important; }
+.ap-bs .ap-bs-cat { width: 40px; height: 40px; display: grid !important; place-items: center; }
+.ap-bs .ap-bs-pill { gap: 6px; }
+.ap-bs .ap-bs-pill .pp-button { width: 36px; height: 36px; display: grid !important; place-items: center; }
+
+/* selected / primary surfaces use the accent */
+.ap-bs .pp-button.on::after,
+.ap-bs .pp-button[aria-checked='true']:not([role='switch'])::after,
+.ap-bs .pp-button.ap-bs-done::after,
+.ap-bs .pp-button.primary::after {
+  background: var(--pp-active);
+  border-color: transparent;
+}
+.ap-bs .pp-button.on,
+.ap-bs .pp-button[aria-checked='true']:not([role='switch']),
+.ap-bs .pp-button.ap-bs-done,
+.ap-bs .pp-button.primary { color: oklch(1 0 0) !important; }
+.ap-bs .pp-button.danger::after { background: color-mix(in srgb, var(--destructive) 14%, transparent); }
+
+/* segmented controls and chips read as pills */
+.ap-bs .ap-bs-seg .pp-button, .ap-bs .ap-bs-grid2 .pp-button { border-radius: 12px !important; min-height: 34px; padding: 0 12px !important; text-transform: capitalize; }
+.ap-bs .ap-bs-action { border-radius: 14px !important; min-height: 42px; padding: 0 14px !important; margin: 4px 0; width: 100%; justify-content: flex-start; }
+.ap-bs .pp-button:active:not(:disabled) { transform: scale(0.95); }
+
+.ap-bs-subhead { display: block; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: color-mix(in srgb, var(--pp-ink) 55%, transparent); margin: 14px 6px 6px; }
