@@ -15,7 +15,7 @@ import { colorDrop } from './fill';
 import { createFillWave, FILL_WAVE_DURATION } from './fill-wave';
 import { detectShape, type Pt, type QuickShapeResult } from './geometry';
 import { ArrowGlyph, BrushGlyph, DotsGlyph, EraserGlyph, LayersGlyph, SelectGlyph, SmudgeGlyph, WandGlyph, WrenchGlyph } from './icons';
-import { Check, ChevronRight, FlipHorizontal2, FlipVertical2, RotateCcw, RotateCw, Scan } from 'lucide-react';
+import { Check, ChevronRight, FlipHorizontal2, FlipVertical2, Grid3x3, Magnet, Maximize, Plus, RotateCcw, RotateCw, Scan, Trash2 } from 'lucide-react';
 import { AdjustmentPanel, AdjustActions, AdjustOverlay, CloneControls, CloneDisc, defaultParams, type AdjustmentName, type CloneSettings } from './Adjustments';
 import { layerValueOf, normalizeParams, usesSwipe } from './adjust-defs';
 import { TextSheet } from './TextSheet';
@@ -1228,6 +1228,8 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
   const floodCache = useRef<{ key?: HTMLCanvasElement; data?: Uint8ClampedArray }>({});
   /** Automatic selection session: the seed, the selection before it, and the live threshold. */
   const selClose = useRef(false);
+  const [selPanel, setSelPanel] = useState<null | 'feather' | 'saved'>(null);
+  const [feather, setFeather] = useState(20);
   const selHold = useRef<{ t: number; fired: boolean }>({ t: 0, fired: false });
   const reloadSelection = () => {
     const l = lastSel.current ?? selectionRef.current?.outlines;
@@ -3051,18 +3053,45 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
 
       {/* contextual bottom bars */}
       {!hideUI && tool === 'select' && !panel && !adjust && (
-        <Sheet modal={false} label="Selection" className="pp-bottombar" onClose={() => setTool('brush')}>
-          <div className="pp-seg small">
-            {(['Freehand', 'Rectangle', 'Ellipse'] as SelMode[]).map((m) => <Button variant="paint" size="paint" key={m} type="button" className={selMode === m ? 'on' : ''} onClick={() => setSelMode(m)}>{m}</Button>)}
+        <Sheet modal={false} label="Selection" className="pp-bottombar pp-sel-sheet" onClose={() => { commitDraft('add'); setTool('brush'); }}>
+          <div className="pp-seg small pp-sel-modes" role="tablist" aria-label="Selection mode">
+            {(['Automatic', 'Freehand', 'Rectangle', 'Ellipse'] as SelMode[]).map((m) => <Button variant="paint" size="paint" key={m} type="button" role="tab" aria-selected={selMode === m} className={selMode === m ? 'on' : ''} onClick={() => { if (m !== selMode) commitDraft('add'); setSelMode(m); }}>{m}</Button>)}
           </div>
-          <div className="pp-chip-row">
-            <Button variant="paint" size="paint" type="button" onClick={() => selectionAction('all')}>All</Button>
-            <Button variant="paint" size="paint" type="button" onClick={() => selectionAction('invert')}>Invert</Button>
-            <Button variant="paint" size="paint" type="button" onClick={() => selectionAction('copy-paste')}>Copy &amp; Paste</Button>
-            <Button variant="paint" size="paint" type="button" onClick={() => selectionAction('fill')}>Fill</Button>
-            <Button variant="paint" size="paint" type="button" onClick={() => selectionAction('delete')}>Delete</Button>
+          <div className="pp-chip-row pp-sel-actions">
+            <Button variant="paint" size="paint" type="button" onClick={() => { if (!commitDraft('add')) flash('Draw a shape to add'); }}>Add</Button>
+            <Button variant="paint" size="paint" type="button" onClick={() => { if (!commitDraft('remove')) flash('Draw a shape to remove'); }}>Remove</Button>
+            <Button variant="paint" size="paint" type="button" onClick={() => { commitDraft('add'); selectionAction('invert'); }}>Invert</Button>
+            <Button variant="paint" size="paint" type="button" onClick={() => { commitDraft('add'); selectionAction('copy-paste'); }}>Copy &amp; Paste</Button>
+            <Button variant="paint" size="paint" type="button" className={selPanel === 'feather' ? 'on' : ''} onClick={() => { commitDraft('add'); setSelPanel(selPanel === 'feather' ? null : 'feather'); }}>Feather</Button>
+            <Button variant="paint" size="paint" type="button" className={selPanel === 'saved' ? 'on' : ''} onClick={() => { commitDraft('add'); setSelPanel(selPanel === 'saved' ? null : 'saved'); }}>Save &amp; Load</Button>
+            <Button variant="paint" size="paint" type="button" onClick={() => { commitDraft('add'); selectionAction('fill'); }}>Color Fill</Button>
             <Button variant="paint" size="paint" type="button" onClick={() => selectionAction('clear')}>Clear</Button>
           </div>
+          {selPanel === 'feather' && (
+            <div className="pp-sel-panel">
+              <div className="pp-sel-panel-row"><span>Feather</span><b>{feather}%</b></div>
+              <input type="range" min={0} max={100} value={feather} className="pp-range" aria-label="Feather amount" onChange={(e) => setFeather(Number(e.target.value))} />
+              <Button variant="paint" size="paint" type="button" className="pp-primary" onClick={() => { featherSel((feather / 100) * Math.max(W, H) * 0.04); setSelPanel(null); }}>Apply</Button>
+            </div>
+          )}
+          {selPanel === 'saved' && (
+            <div className="pp-sel-panel">
+              <div className="pp-sel-panel-row"><span>Selections</span>
+                <Button variant="paint" size="paint" type="button" className="pp-circle-btn" aria-label="Save current selection" onClick={saveCurrentSel}><Plus size={18} /></Button></div>
+              {savedSels.length === 0 ? <p className="pp-hint">Tap + to store the current selection.</p> : (
+                <div className="pp-sel-saved">
+                  {savedSels.map((x) => (
+                    <div key={x.id} className="pp-sel-saved-item">
+                      <Button variant="paint" size="paint" type="button" onClick={() => { const n = buildSel(x.outlines); setSelection(n); if (n) lastSel.current = n.outlines; flash(`${x.name} loaded`); }}>
+                        <img src={x.thumb} alt="" /><span>{x.name}</span>
+                      </Button>
+                      <Button variant="paint" size="paint" type="button" aria-label={`Delete ${x.name}`} onClick={() => deleteSavedSel(x.id)}><Trash2 size={16} /></Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </Sheet>
       )}
       {!hideUI && tool === 'transform' && floatingOn && !panel && (
@@ -3070,18 +3099,37 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
           <div className="pp-seg small pp-tf-tabs" role="tablist" aria-label="Transform mode">
             {(['Freeform', 'Uniform', 'Distort', 'Warp'] as const).map((m) => (
               <Button variant="paint" size="paint" key={m} type="button" role="tab" aria-selected={tfMode === m} className={tfMode === m ? 'on' : ''}
-                onClick={() => { if (m === 'Distort' || m === 'Warp') { flash(`${m} isn't available yet`); return; } setTfMode(m); }}>{m}</Button>
+                onClick={() => setTfMode(m)}>{m}</Button>
             ))}
           </div>
           <div className="pp-tf-icons">
-            <Button variant="paint" size="paint" type="button" aria-label="Reset transform" onClick={() => setTf({ tx: 0, ty: 0, scale: 1, rot: 0, fx: 1, fy: 1 })}><RotateCcw size={19} /></Button>
-            <Button variant="paint" size="paint" type="button" aria-label="Flip horizontally" onClick={() => setTf({ ...tf, fx: -tf.fx })}><FlipHorizontal2 size={19} /></Button>
-            <Button variant="paint" size="paint" type="button" aria-label="Flip vertically" onClick={() => setTf({ ...tf, fy: -tf.fy })}><FlipVertical2 size={19} /></Button>
-            <Button variant="paint" size="paint" type="button" aria-label="Rotate 45 degrees" onClick={() => setTf({ ...tf, rot: tf.rot + 45 })}><RotateCw size={19} /></Button>
+            {tfMode === 'Warp'
+              ? <Button variant="paint" size="paint" type="button" className={advMesh ? 'on' : ''} aria-pressed={advMesh} aria-label="Advanced Mesh" onClick={() => { setAdvMesh(!advMesh); requestRender(); }}><Grid3x3 size={19} /></Button>
+              : <Button variant="paint" size="paint" type="button" className={snapOn || magnetics ? 'on' : ''} aria-label="Snapping" onClick={() => setTfPanel(tfPanel === 'snap' ? null : 'snap')}><Magnet size={19} /></Button>}
+            <Button variant="paint" size="paint" type="button" aria-label="Flip horizontally" onClick={() => tfFlip(true)}><FlipHorizontal2 size={19} /></Button>
+            <Button variant="paint" size="paint" type="button" aria-label="Flip vertically" onClick={() => tfFlip(false)}><FlipVertical2 size={19} /></Button>
+            <Button variant="paint" size="paint" type="button" aria-label="Rotate 45 degrees" onClick={tfRotate45}><RotateCw size={19} /></Button>
+            <Button variant="paint" size="paint" type="button" aria-label="Fit to screen" onClick={tfFitScreen}><Maximize size={19} /></Button>
+            <Button variant="paint" size="paint" type="button" aria-label="Reset transform" onClick={tfReset}><RotateCcw size={19} /></Button>
           </div>
-          <Button variant="paint" size="paint" type="button" className="pp-tf-interp" onClick={cycleInterp}>
-            <span>Interpolation: {interp}</span><ChevronRight size={17} />
+          {tfPanel === 'snap' && tfMode !== 'Warp' && (
+            <div className="pp-sel-panel">
+              <label className="pp-sel-panel-row"><span>Snapping</span><input type="checkbox" className="pp-switch" checked={snapOn} onChange={(e) => setSnapOn(e.target.checked)} /></label>
+              <label className="pp-sel-panel-row"><span>Magnetics</span><input type="checkbox" className="pp-switch" checked={magnetics} onChange={(e) => setMagnetics(e.target.checked)} /></label>
+              <div className="pp-sel-panel-row"><span>Distance</span><b>{snapDist}</b></div>
+              <input type="range" min={1} max={50} value={snapDist} className="pp-range" aria-label="Snapping distance" disabled={!snapOn} onChange={(e) => setSnapDist(Number(e.target.value))} />
+            </div>
+          )}
+          <Button variant="paint" size="paint" type="button" className="pp-tf-interp" onClick={() => setTfPanel(tfPanel === 'interp' ? null : 'interp')}>
+            <span>Interpolation: {interp}</span><ChevronRight size={17} style={{ transform: tfPanel === 'interp' ? 'rotate(90deg)' : undefined, transition: 'transform 180ms ease' }} />
           </Button>
+          {tfPanel === 'interp' && (
+            <div className="pp-sel-panel pp-tf-interp-list">
+              {(['Nearest neighbor', 'Bilinear', 'Bicubic'] as const).map((x) => (
+                <Button variant="paint" size="paint" key={x} type="button" className={interp === x ? 'on' : ''} onClick={() => { setInterp(x); setTfPanel(null); requestRender(); }}>{x}{interp === x && <Check size={16} />}</Button>
+              ))}
+            </div>
+          )}
           <Button variant="paint" size="paint" type="button" className="pp-tf-done" aria-label="Apply transform" onClick={() => { commitTransform(); setTool('brush'); }}>
             <Check size={20} />
           </Button>
