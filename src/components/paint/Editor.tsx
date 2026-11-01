@@ -578,16 +578,25 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
     };
     const sel = selectionRef.current;
     if (sel && !f) {
+      const outline = () => { ctx.beginPath(); sel.outlines.forEach((o) => { o.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.closePath(); }); };
       ctx.save();
-      if (sel.inverted) { ctx.fillStyle = 'rgba(0,0,0,0)'; }
-      else {
-        ctx.fillStyle = 'rgba(30,30,40,0.18)';
-        ctx.beginPath(); ctx.rect(0, 0, W, H);
-        sel.outlines.forEach((o) => { o.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.closePath(); });
-        ctx.fill('evenodd');
+      ctx.beginPath(); ctx.rect(0, 0, W, H);
+      sel.outlines.forEach((o) => { o.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.closePath(); });
+      const vis = Math.max(0, Math.min(1, (prefsRef.current.selMaskVis ?? 50) / 100));
+      if (toolRef.current === 'select') {
+        // selecting: selected area tinted, marching outline
+        ctx.globalAlpha = 0.18 + vis * 0.2;
+        ctx.fillStyle = '#0a84ff';
+        outline(); ctx.fill('evenodd');
+      } else {
+        // committed: semi-transparent diagonal lines outside the selection
+        ctx.clip('evenodd');
+        ctx.globalAlpha = 0.25 + vis * 0.6;
+        ctx.fillStyle = selStripes(ctx, lw);
+        ctx.fillRect(0, 0, W, H);
       }
       ctx.restore();
-      ants(() => { ctx.beginPath(); sel.outlines.forEach((o) => { o.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))); ctx.closePath(); }); });
+      ants(outline);
     }
     const d = draftOverlay.current;
     if (d) {
@@ -597,6 +606,12 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
         else if (d.kind === 'rect') ctx.rect(Math.min(d.from.x, d.to.x), Math.min(d.from.y, d.to.y), Math.abs(d.to.x - d.from.x), Math.abs(d.to.y - d.from.y));
         else ctx.ellipse((d.from.x + d.to.x) / 2, (d.from.y + d.to.y) / 2, Math.abs(d.to.x - d.from.x) / 2 || 1, Math.abs(d.to.y - d.from.y) / 2 || 1, 0, 0, Math.PI * 2);
       });
+      if (d.kind === 'lasso' && d.points.length) {
+        // the origin shows a gray circle: tap it to close the selection
+        const o = d.points[0]!;
+        ctx.save(); ctx.beginPath(); ctx.arc(o.x, o.y, 11 * lw, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(142,142,147,0.85)'; ctx.fill(); ctx.lineWidth = 1.5 * lw; ctx.strokeStyle = '#fff'; ctx.stroke(); ctx.restore();
+      }
     }
     if (f && floating) {
       const t = tfRef.current, q = t.quad;
