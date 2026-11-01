@@ -7,7 +7,7 @@ import { BrushStudio } from './BrushStudio';
 import { ColorsSheet, dragOrTap, type ColorTab, type Palette } from './ColorsSheet';
 import { blendModes, composite, ctx2d, flatten, makeCanvas, type Floating, type LayerMeta, type LayerState, type LiveStroke, type Texture } from './doc';
 import { centroid, drawTransformed, dragMesh, homography, locate, meshFromQuad, patch, pointInQuad, quadToQuad, rectQuad, rotateAbout, type TfState } from './transform-math';
-import { alphaMask, boundsOf, combine, emptyMask, floodMask, invert as invertMask, isEmpty as maskEmpty, rasterize, trace } from './selection-mask';
+import { alphaMask, boundsOf, combine, floodMask, invert as invertMask, isEmpty as maskEmpty, rasterize, trace } from './selection-mask';
 import { blockRange, moveRow, visibleRows } from './layer-tree';
 import { resolveTexture, textures } from './textures';
 import { adjustShort } from './Panels';
@@ -1465,7 +1465,6 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
       if (maskEmpty(m)) { flash('Layer is empty'); return; }
       const n = buildSel(trace(m));
       setSelection(n); if (n) lastSel.current = n.outlines;
-      setTool('select');
     }
   };
   const reorder = (from: number, to: number) => {
@@ -1514,23 +1513,40 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
   };
 
   /* ---------- transform ---------- */
+  /** tight bounds of painted pixels inside rect (bounding box = exact content size, like Procreate) */
+  const contentBounds = (canvas: HTMLCanvasElement, r: Rect): Rect | null => {
+    const x0 = Math.max(0, Math.floor(r.x)), y0 = Math.max(0, Math.floor(r.y));
+    const x1 = Math.min(W, Math.ceil(r.x + r.w)), y1 = Math.min(H, Math.ceil(r.y + r.h));
+    if (x1 <= x0 || y1 <= y0) return null;
+    const d = canvas.getContext('2d', { willReadFrequently: true })!.getImageData(x0, y0, x1 - x0, y1 - y0).data;
+    const w = x1 - x0, h = y1 - y0;
+    let minX = w, minY = h, maxX = -1, maxY = -1;
+    for (let y = 0; y < h; y++) { const row = y * w * 4; for (let x = 0; x < w; x++) if (d[row + x * 4 + 3]! > 2) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; } }
+    if (maxX < 0) return null;
+    return { x: x0 + minX, y: y0 + minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+  };
   const startTransform = () => {
     const layer = active();
     if (!layer || floatingRef.current) return;
     if (notPixel(layer)) return;
     if (layer.locked) { flash('Layer is locked'); return; }
-    pushHistory([layer.id]);
     const sel = selectionRef.current;
-    const fc = makeCanvas(W, H);
+    const area = sel ? sel.bounds : { x: 0, y: 0, w: W, h: H };
+    const b = contentBounds(layer.canvas, area) ?? (sel ? { x: Math.floor(area.x), y: Math.floor(area.y), w: Math.max(1, Math.ceil(area.w)), h: Math.max(1, Math.ceil(area.h)) } : null);
+    if (!b) { flash('Nothing to transform on this layer'); return; }
+    pushHistory([layer.id]);
+    // floating content is cropped to its bounds: every live frame draws only what moves
+    const fc = makeCanvas(b.w, b.h);
     const c = ctx2d(fc);
+    c.translate(-b.x, -b.y);
     if (sel) { c.save(); c.clip(sel.path, 'evenodd'); }
     c.drawImage(layer.canvas, 0, 0);
     if (sel) c.restore();
     const lc = ctx2d(layer.canvas);
-    lc.save(); if (sel) lc.clip(sel.path, 'evenodd'); lc.clearRect(0, 0, W, H); lc.restore();
-    floatingRef.current = { layerId: layer.id, canvas: fc, bounds: sel ? sel.bounds : { x: 0, y: 0, w: W, h: H } };
+    lc.save(); if (sel) lc.clip(sel.path, 'evenodd'); else { lc.beginPath(); lc.rect(b.x, b.y, b.w, b.h); lc.clip(); } lc.clearRect(0, 0, W, H); lc.restore();
+    floatingRef.current = { layerId: layer.id, canvas: fc, bounds: b };
     setFloatingOn(true);
-    setTf({ tx: 0, ty: 0, scale: 1, rot: 0, fx: 1, fy: 1 });
+    setTf({ quad: rectQuad(b), mesh: tfModeRef.current === 'Warp' ? meshFromQuad(rectQuad(b)) : null });
   };
   const commitTransform = (cancel = false) => {
     const f = floatingRef.current;
@@ -1539,22 +1555,231 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
     if (layer) {
       const c = ctx2d(layer.canvas);
       c.save();
-      if (!cancel) {
-        c.setTransform(tfMatrix(tfRef.current, f.bounds));
-        if (interpRef.current === 'Nearest neighbor') c.imageSmoothingEnabled = false;
-        else { c.imageSmoothingEnabled = true; c.imageSmoothingQuality = interpRef.current === 'Bicubic' ? 'high' : 'medium'; }
-      }
-      c.drawImage(f.canvas, 0, 0);
+      c.imageSmoothingQuality = interpRef.current === 'Bicubic' ? 'high' : 'medium';
+      if (cancel) c.drawImage(f.canvas, f.bounds.x, f.bounds.y);
+      else drawTransformed(c, f.canvas, f.bounds, f.bounds.x, f.bounds.y, tfRef.current, 'final', smoothFor());
       c.restore();
       markDirty(layer.id);
     }
     floatingRef.current = null;
+    tfHud.current = { text: null, guides: [] };
     setFloatingOn(false);
+    setTfExpanded(false); setTfPanel(null);
     // once a resize/transform is applied the selection is finished with: clear it
     if (!cancel && selectionRef.current) setSelection(null);
     requestRender();
-    setTf({ tx: 0, ty: 0, scale: 1, rot: 0, fx: 1, fy: 1 });
     if (cancel) undoStack.current.pop();
+    else bump();
+  };
+  /* ---- transform editing: everything is an operation on the 4 corners (and the warp mesh) ---- */
+  const applyQuad = (q0: Tf, quad: Pt[]) => {
+    const mesh = q0.mesh ? q0.mesh.map(quadToQuad(q0.quad, quad)) : null;
+    setTf({ quad, mesh });
+  };
+  const mapTf = (q0: Tf, fn: (p: Pt) => Pt) => setTf({ quad: q0.quad.map(fn), mesh: q0.mesh ? q0.mesh.map(fn) : null });
+  const setTfMode = (m: 'Freeform' | 'Uniform' | 'Distort' | 'Warp') => {
+    setTfModeState(m);
+    const t = tfRef.current;
+    if (m === 'Warp' && !t.mesh && floatingRef.current) setTf({ quad: t.quad, mesh: meshFromQuad(t.quad) });
+    requestRender();
+  };
+  const tfReset = () => { const f = floatingRef.current; if (f) setTf({ quad: rectQuad(f.bounds), mesh: tfModeRef.current === 'Warp' ? meshFromQuad(rectQuad(f.bounds)) : null }); };
+  const tfFlip = (h: boolean) => {
+    const t = tfRef.current, q = t.quad;
+    const quad = h ? [q[1]!, q[0]!, q[3]!, q[2]!] : [q[3]!, q[2]!, q[1]!, q[0]!];
+    const mesh = t.mesh ? (h ? [0, 1, 2, 3].flatMap((j) => [3, 2, 1, 0].map((i) => t.mesh![j * 4 + i]!)) : [3, 2, 1, 0].flatMap((j) => [0, 1, 2, 3].map((i) => t.mesh![j * 4 + i]!))) : null;
+    setTf({ quad, mesh });
+  };
+  const tfRotate45 = () => { const t = tfRef.current; mapTf(t, rotateAbout(centroid(t.quad), 45)); };
+  const tfFitScreen = () => {
+    const t = tfRef.current;
+    const pts = t.mesh ?? t.quad;
+    const bb = boundsOf([pts]);
+    if (bb.w < 1 || bb.h < 1) return;
+    const k = Math.min(W / bb.w, H / bb.h);
+    const cx = bb.x + bb.w / 2, cy = bb.y + bb.h / 2;
+    mapTf(t, (p) => ({ x: W / 2 + (p.x - cx) * k, y: H / 2 + (p.y - cy) * k }));
+  };
+  /** Handles in document space: 8 transformation nodes + the green rotation node, or warp nodes. */
+  const tfHandles = (): { kind: 'corner' | 'side' | 'rotate' | 'mesh'; i: number; p: Pt; u?: number; v?: number }[] => {
+    const t = tfRef.current;
+    if (t.mesh) {
+      const P = patch(t.mesh);
+      const out: { kind: 'mesh'; i: number; p: Pt; u: number; v: number }[] = [];
+      for (let j = 0; j <= 3; j++) for (let i = 0; i <= 3; i++) {
+        const border = i === 0 || j === 0 || i === 3 || j === 3;
+        if (!border && !snapRef.current.adv) continue;
+        out.push({ kind: 'mesh', i: j * 4 + i, p: P(i / 3, j / 3), u: i / 3, v: j / 3 });
+      }
+      return out;
+    }
+    const q = t.quad;
+    const mid = (a: Pt, b: Pt) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    const hs: { kind: 'corner' | 'side' | 'rotate'; i: number; p: Pt }[] = [
+      ...q.map((p, i) => ({ kind: 'corner' as const, i, p })),
+      ...[0, 1, 2, 3].map((i) => ({ kind: 'side' as const, i, p: mid(q[i]!, q[(i + 1) % 4]!) })),
+    ];
+    const top = mid(q[0]!, q[1]!), c = centroid(q);
+    const dx = top.x - c.x, dy = top.y - c.y, l = Math.hypot(dx, dy) || 1;
+    const off = 30 / view.current.scale;
+    hs.push({ kind: 'rotate', i: 0, p: { x: top.x + (dx / l) * off, y: top.y + (dy / l) * off } });
+    return hs;
+  };
+  type TfDrag = { kind: 'move' | 'corner' | 'side' | 'rotate' | 'mesh' | 'distort'; i: number; t0: Tf; p0: Pt; client0: Pt; u?: number; v?: number; fromCenter?: boolean; holdTimer?: number; moved: boolean; started: number; outside: boolean };
+  const tfDrag = useRef<TfDrag | null>(null);
+  const beginTfDrag = (clientX: number, clientY: number) => {
+    const t = tfRef.current;
+    const p = toDoc(clientX, clientY);
+    const hit = tfHandles().map((h) => ({ h, d: Math.hypot(toScreen(h.p).x - clientX, toScreen(h.p).y - clientY) })).filter((x) => x.d < 30).sort((a, b) => a.d - b.d)[0]?.h;
+    const base = { t0: { quad: t.quad.map((x) => ({ ...x })), mesh: t.mesh ? t.mesh.map((x) => ({ ...x })) : null }, p0: p, client0: { x: clientX, y: clientY }, moved: false, started: performance.now() };
+    if (hit) {
+      const d: TfDrag = { kind: hit.kind, i: hit.i, u: (hit as { u?: number }).u, v: (hit as { v?: number }).v, outside: false, ...base };
+      const m = tfModeRef.current;
+      // hold a node: Uniform scales from the centre, Freeform corners switch to Distort while held
+      if ((hit.kind === 'corner' || hit.kind === 'side') && (m === 'Uniform' || m === 'Freeform')) {
+        d.holdTimer = window.setTimeout(() => {
+          const cur = tfDrag.current;
+          if (cur !== d || d.moved) return;
+          if (m === 'Uniform') { d.fromCenter = true; tfHud.current.text = 'Scale from centre'; }
+          else if (hit.kind === 'corner') { d.kind = 'distort'; tfHud.current.text = 'Distort'; }
+          try { navigator.vibrate?.(10); } catch { /* ignore */ }
+          requestRender();
+        }, 420);
+      }
+      tfDrag.current = d;
+      return;
+    }
+    if (t.mesh && tfModeRef.current === 'Warp') {
+      const loc = locate(patch(t.mesh), p);
+      if (loc.d * view.current.scale < 24) { tfDrag.current = { kind: 'mesh', i: -1, u: loc.u, v: loc.v, outside: false, ...base }; return; }
+    }
+    tfDrag.current = { kind: 'move', i: -1, outside: !pointInQuad(t.quad, p), ...base };
+  };
+  const snapMove = (dx: number, dy: number, t0: Tf) => {
+    const g: { x?: number; y?: number; canvas: boolean }[] = [];
+    const sr = snapRef.current;
+    if (sr.mag) {
+      // Magnetics: slide along horizontal, vertical or 45° lines
+      const a = Math.atan2(dy, dx), step = Math.PI / 4;
+      const sa = Math.round(a / step) * step, len = dx * Math.cos(sa) + dy * Math.sin(sa);
+      dx = Math.cos(sa) * len; dy = Math.sin(sa) * len;
+    }
+    if (sr.on) {
+      const bb = boundsOf([t0.mesh ?? t0.quad]);
+      const tol = sr.dist / view.current.scale;
+      const xs = [bb.x + dx, bb.x + bb.w / 2 + dx, bb.x + bb.w + dx], ys = [bb.y + dy, bb.y + bb.h / 2 + dy, bb.y + bb.h + dy];
+      const tx = [0, W / 2, W], ty = [0, H / 2, H];
+      let bx: number | null = null, by: number | null = null, bdx = tol, bdy = tol;
+      for (const x of xs) for (const T of tx) if (Math.abs(x - T) < bdx) { bdx = Math.abs(x - T); bx = T - x; }
+      for (const y of ys) for (const T of ty) if (Math.abs(y - T) < bdy) { bdy = Math.abs(y - T); by = T - y; }
+      if (bx !== null) { dx += bx; const x = xs.map((v) => v + bx!).find((v) => tx.some((T) => Math.abs(v - T) < 0.01)); if (x !== undefined) g.push({ x, canvas: true }); }
+      if (by !== null) { dy += by; const y = ys.map((v) => v + by!).find((v) => ty.some((T) => Math.abs(v - T) < 0.01)); if (y !== undefined) g.push({ y, canvas: true }); }
+    }
+    tfHud.current.guides = g;
+    return { dx, dy };
+  };
+  const moveTfDrag = (clientX: number, clientY: number) => {
+    const d = tfDrag.current;
+    if (!d) return;
+    if (!d.moved && Math.hypot(clientX - d.client0.x, clientY - d.client0.y) < 4) return;
+    d.moved = true;
+    const p = toDoc(clientX, clientY);
+    const t0 = d.t0, q0 = t0.quad;
+    const m = tfModeRef.current;
+    const sr = snapRef.current;
+    tfLive.current = true;
+    if (d.kind === 'move') {
+      const s = snapMove(p.x - d.p0.x, p.y - d.p0.y, t0);
+      mapTf(t0, (x) => ({ x: x.x + s.dx, y: x.y + s.dy }));
+      tfHud.current.text = null;
+      return;
+    }
+    if (d.kind === 'mesh' && t0.mesh) {
+      const u = d.u ?? 0, v = d.v ?? 0;
+      const P0 = patch(t0.mesh)(u, v);
+      setTf({ quad: q0, mesh: dragMesh(t0.mesh, u, v, { x: p.x - P0.x, y: p.y - P0.y }) });
+      return;
+    }
+    if (d.kind === 'rotate') {
+      const c = centroid(q0);
+      const a0 = Math.atan2(d.p0.y - c.y, d.p0.x - c.x), a1 = Math.atan2(p.y - c.y, p.x - c.x);
+      let deg = ((a1 - a0) * 180) / Math.PI;
+      const base = ((Math.atan2(q0[1]!.y - q0[0]!.y, q0[1]!.x - q0[0]!.x) * 180) / Math.PI);
+      let total = base + deg;
+      if (sr.mag || Math.abs(total - Math.round(total / 15) * 15) < 1.5) { total = Math.round(total / 15) * 15; deg = total - base; }
+      mapTf(t0, rotateAbout(c, deg));
+      tfHud.current.text = `${Math.round(((total % 360) + 540) % 360 - 180)}°`;
+      return;
+    }
+    if (d.kind === 'distort' || (m === 'Distort' && d.kind === 'corner')) {
+      const quad = q0.map((x) => ({ ...x }));
+      quad[d.i] = p;
+      applyQuad(t0, quad);
+      tfHud.current.text = d.kind === 'distort' ? 'Distort' : null;
+      return;
+    }
+    if (m === 'Distort' && d.kind === 'side') {
+      // shear: the side's two corners travel with the finger (Magnetics: along the side only)
+      let dx = p.x - d.p0.x, dy = p.y - d.p0.y;
+      if (sr.mag) {
+        const a = q0[d.i]!, b = q0[(d.i + 1) % 4]!;
+        const ex = b.x - a.x, ey = b.y - a.y, l2 = ex * ex + ey * ey || 1;
+        const k = (dx * ex + dy * ey) / l2; dx = ex * k; dy = ey * k;
+      }
+      const quad = q0.map((x, i) => (i === d.i || i === (d.i + 1) % 4 ? { x: x.x + dx, y: x.y + dy } : { ...x }));
+      applyQuad(t0, quad);
+      return;
+    }
+    // Freeform / Uniform node scaling in the content's own (possibly rotated, sheared) frame
+    const ex = { x: q0[1]!.x - q0[0]!.x, y: q0[1]!.y - q0[0]!.y };
+    const ey = { x: q0[3]!.x - q0[0]!.x, y: q0[3]!.y - q0[0]!.y };
+    const det = ex.x * ey.y - ex.y * ey.x || 1e-9;
+    const toUV = (pt: Pt) => { const rx = pt.x - q0[0]!.x, ry = pt.y - q0[0]!.y; return { u: (rx * ey.y - ry * ey.x) / det, v: (ex.x * ry - ex.y * rx) / det }; };
+    const fromUV = (u: number, v: number) => ({ x: q0[0]!.x + ex.x * u + ey.x * v, y: q0[0]!.y + ex.y * u + ey.y * v });
+    // node position in unit coords
+    const cornerUV = [[0, 0], [1, 0], [1, 1], [0, 1]] as const;
+    const sideUV = [[0.5, 0], [1, 0.5], [0.5, 1], [0, 0.5]] as const;
+    const [nu, nv] = d.kind === 'corner' ? cornerUV[d.i]! : sideUV[d.i]!;
+    const au = d.fromCenter ? 0.5 : 1 - nu, av = d.fromCenter ? 0.5 : 1 - nv;
+    const cur = toUV(p);
+    const uniform = m === 'Uniform' || (m === 'Freeform' && sr.mag && d.kind === 'corner');
+    let ku = nu !== au ? (cur.u - au) / (nu - au) : 1;
+    let kv = nv !== av ? (cur.v - av) / (nv - av) : 1;
+    if (uniform) {
+      let k: number;
+      if (d.kind === 'corner') {
+        // project the finger onto the anchor→node diagonal
+        const A = fromUV(au, av), N = fromUV(nu, nv), P2 = p;
+        const vx = N.x - A.x, vy = N.y - A.y;
+        k = ((P2.x - A.x) * vx + (P2.y - A.y) * vy) / (vx * vx + vy * vy || 1);
+      } else k = nu !== au ? ku : kv;
+      ku = kv = k;
+    }
+    const fn = (pt: Pt) => { const uv = toUV(pt); return fromUV(au + (uv.u - au) * ku, av + (uv.v - av) * kv); };
+    mapTf(t0, fn);
+    const w0 = Math.hypot(ex.x, ex.y), h0 = Math.hypot(ey.x, ey.y);
+    const f = floatingRef.current;
+    if (f) {
+      const sx = (w0 * Math.abs(ku)) / f.bounds.w, sy = (h0 * Math.abs(kv)) / f.bounds.h;
+      tfHud.current.text = Math.abs(sx - sy) < 0.005 ? `Scale ${Math.round(sx * 100)}%` : `W ${Math.round(sx * 100)}%  H ${Math.round(sy * 100)}%`;
+    }
+  };
+  const endTfDrag = (clientX: number, clientY: number) => {
+    const d = tfDrag.current;
+    tfDrag.current = null;
+    if (!d) return;
+    window.clearTimeout(d.holdTimer);
+    tfLive.current = false;
+    tfHud.current = { text: null, guides: [] };
+    if (!d.moved && d.kind === 'move' && d.outside && performance.now() - d.started < 300) {
+      // tap outside the bounding box: nudge one step towards the tap
+      const t = tfRef.current, c = centroid(t.quad), p = toDoc(clientX, clientY);
+      const dx = p.x - c.x, dy = p.y - c.y;
+      const step = Math.max(1, 1 / view.current.scale);
+      const nx = Math.abs(dx) > Math.abs(dy) ? Math.sign(dx) * step : 0, ny = Math.abs(dy) >= Math.abs(dx) ? Math.sign(dy) * step : 0;
+      mapTf(t, (x) => ({ x: x.x + nx, y: x.y + ny }));
+    }
+    requestRender();
   };
 
   /* ---------- adjustments (Procreate Pocket 5) ---------- */
