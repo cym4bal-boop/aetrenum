@@ -2520,7 +2520,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
       if (kind === 'size') setSizes((s) => ({ ...s, [paintTool]: c })); else setOpacities((s) => ({ ...s, [paintTool]: c }));
       showPreview(kind, c);
     };
-    const KNOB = 22, INSET = 2;
+    const KNOB = 40, INSET = 7;
     const fromY = (el: HTMLElement, y: number) => { const r = el.getBoundingClientRect(); return 1 - (y - r.top - INSET - KNOB / 2) / (r.height - KNOB - INSET * 2); };
     const down = (e: RPE<HTMLDivElement>) => {
       if (sbBusy.current) return;
