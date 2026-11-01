@@ -1227,6 +1227,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
   const lastSel = useRef<Pt[][] | null>(null);
   const floodCache = useRef<{ key?: HTMLCanvasElement; data?: Uint8ClampedArray }>({});
   /** Automatic selection session: the seed, the selection before it, and the live threshold. */
+  const selClose = useRef(false);
   const autoSel = useRef<null | { p: Pt; base: Pt[][] | null; thr: number; client: Pt; t: number; holding: boolean; raf: number }>(null);
   const autoThreshold = useRef(30);
   const runAuto = (p: Pt, base: Pt[][] | null, thr: number) => {
@@ -2412,13 +2413,33 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
     }
     if (tool === 'transform') {
       if (!floatingRef.current) startTransform();
+      if (!floatingRef.current) { mode.current = 'idle'; return; }
       mode.current = 'transform';
-      dragStart.current = { p, tf: { ...tfRef.current }, client: { x: e.clientX, y: e.clientY }, value: 0 };
+      beginTfDrag(e.clientX, e.clientY);
       return;
     }
     if (tool === 'select') {
       mode.current = 'select';
-      draftOverlay.current = selMode === 'Freehand' ? { kind: 'lasso', points: [p] } : { kind: selMode === 'Rectangle' ? 'rect' : 'ellipse', from: p, to: p };
+      if (selMode === 'Automatic') {
+        // tap adds an area; tap-and-hold then drag left/right sets the threshold
+        const base = selectionRef.current?.outlines ?? null;
+        const a = { p, base, thr: autoThreshold.current, client: { x: e.clientX, y: e.clientY }, t: performance.now(), holding: false, raf: 0 };
+        autoSel.current = a;
+        runAuto(p, base, a.thr);
+        window.setTimeout(() => { if (autoSel.current === a) { a.holding = true; flash(`Selection Threshold ${Math.round(a.thr)}%`); } }, 380);
+        return;
+      }
+      const d = draftOverlay.current;
+      if (selMode === 'Freehand') {
+        if (d && d.kind === 'lasso' && d.points.length > 2) {
+          const o = toScreen(d.points[0]!);
+          if (Math.hypot(o.x - e.clientX, o.y - e.clientY) < 26) { selClose.current = true; return; }
+          d.points.push(p); // polygon line from the previous node, then keep drawing freehand
+        } else draftOverlay.current = { kind: 'lasso', points: [p] };
+      } else {
+        if (d) commitDraft('add');
+        draftOverlay.current = { kind: selMode === 'Rectangle' ? 'rect' : 'ellipse', from: p, to: p };
+      }
       requestRender();
       return;
     }
@@ -2519,17 +2540,15 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
       if (Math.hypot(t.c.x - g.c0.x, t.c.y - g.c0.y) > 10 || Math.abs(t.d - g.d0) > 12) { if (!g.moved) stopHoldRepeat(); g.moved = true; }
       (g as any).dLast = t.d;
       if (tool === 'transform' && floatingRef.current) {
+        // two fingers: move, scale and rotate (Uniform keeps proportions; Freeform stretches along the fingers)
+        if (tfDrag.current) { window.clearTimeout(tfDrag.current.holdTimer); tfDrag.current = null; }
+        tfLive.current = true;
         const d0 = toDoc(g.c0.x, g.c0.y), d1 = toDoc(t.c.x, t.c.y);
-        if (tfMode === 'Freeform') {
-          // stretch along the fingers' separation axes instead of uniform scaling
-          const pts = [...pointers.current.values()] as [Ptr, Ptr];
-          const vx = pts[1].x - pts[0].x, vy = pts[1].y - pts[0].y;
-          const kx = Math.abs(g.vx0) > 14 ? Math.abs(vx) / Math.abs(g.vx0) : g.tf0.fx;
-          const ky = Math.abs(g.vy0) > 14 ? Math.abs(vy) / Math.abs(g.vy0) : g.tf0.fy;
-          setTf({ ...g.tf0, fx: Math.max(0.02, kx), fy: Math.max(0.02, ky), tx: g.tf0.tx + d1.x - d0.x, ty: g.tf0.ty + d1.y - d0.y });
-        } else {
-          setTf({ ...g.tf0, scale: Math.max(0.02, g.tf0.scale * (t.d / g.d0)), rot: g.tf0.rot + ((t.a - g.a0) * 180) / Math.PI, tx: g.tf0.tx + d1.x - d0.x, ty: g.tf0.ty + d1.y - d0.y });
-        }
+        const t0 = g.tf0;
+        const k = t.d / g.d0, rot = ((t.a - g.a0) * 180) / Math.PI;
+        const R = rotateAbout({ x: 0, y: 0 }, rot);
+        mapTf(t0, (pt) => { const r = R({ x: (pt.x - d0.x) * k, y: (pt.y - d0.y) * k }); return { x: d1.x + r.x, y: d1.y + r.y }; });
+        tfHud.current.text = `Scale ${Math.round(k * 100)}%`;
         return;
       }
       const scale = Math.max(0.02, Math.min(64, g.v0.scale * (t.d / g.d0)));
@@ -2565,15 +2584,19 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
       requestRender();
     } else if (m === 'eyedrop') {
       eyedropAt(e.clientX, e.clientY, loupe?.old ?? color);
-    } else if (m === 'select' && draftOverlay.current) {
+    } else if (m === 'select' && autoSel.current) {
+      const a = autoSel.current;
+      if (!a.holding) return;
+      const thr = Math.max(0, Math.min(100, autoThreshold.current + (e.clientX - a.client.x) / 3));
+      a.thr = thr;
+      if (!a.raf) a.raf = requestAnimationFrame(() => { a.raf = 0; runAuto(a.p, a.base, a.thr); setToast(`Selection Threshold ${Math.round(a.thr)}%`); });
+    } else if (m === 'select' && draftOverlay.current && !selClose.current) {
       const p = toDoc(e.clientX, e.clientY);
       const d = draftOverlay.current;
-      if (d.kind === 'lasso') d.points.push(p); else d.to = p;
+      if (d.kind === 'lasso') { const l = d.points[d.points.length - 1]!; if (Math.hypot(p.x - l.x, p.y - l.y) * view.current.scale > 1.5) d.points.push(p); } else d.to = p;
       requestRender();
-    } else if (m === 'transform' && dragStart.current) {
-      const p = toDoc(e.clientX, e.clientY);
-      const s = dragStart.current;
-      setTf({ ...s.tf, tx: s.tf.tx + p.x - s.p.x, ty: s.tf.ty + p.y - s.p.y });
+    } else if (m === 'transform') {
+      moveTfDrag(e.clientX, e.clientY);
     } else if (m === 'pan' && dragStart.current) {
       const s = dragStart.current;
       view.current.x += e.clientX - s.client.x; view.current.y += e.clientY - s.client.y;
@@ -2660,11 +2683,20 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
     else if (m === 'eyedrop') {
       if (loupe) { pickColor(loupe.color); commitRecent(loupe.color); }
       setLoupe(null);
+    } else if (m === 'select' && autoSel.current) {
+      const a = autoSel.current;
+      autoSel.current = null;
+      if (a.raf) { cancelAnimationFrame(a.raf); runAuto(a.p, a.base, a.thr); }
+      if (a.holding) autoThreshold.current = a.thr;
+    } else if (m === 'select' && selClose.current) {
+      // tapped the gray start circle: close the freehand selection
+      selClose.current = false;
+      commitDraft('add');
     } else if (m === 'select' && draftOverlay.current) {
       const d = draftOverlay.current;
-      draftOverlay.current = null;
-      const outline = d.kind === 'lasso' ? d.points : d.kind === 'rect' ? rectPts(d.from, d.to) : ellipsePts(d.from, d.to);
-      setSelection(buildSelection(outline));
+      // rectangles / ellipses too small to be meant are dropped; freehand stays open for more lines
+      if (d.kind !== 'lasso' && Math.hypot(d.to.x - d.from.x, d.to.y - d.from.y) * view.current.scale < 6) draftOverlay.current = null;
+      requestRender();
     } else if (m === 'liquify') {
       const last = lastLiq.current;
       lastLiq.current = null;
@@ -2679,7 +2711,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
     } else if (m === 'clone') {
       endClone();
     } else if (m === 'transform') {
-      bump();
+      endTfDrag(e.clientX, e.clientY);
     }
     void had;
     dragStart.current = null;
