@@ -32,6 +32,7 @@ import { DEFAULT_ACCENT, applyCurve, applyTheme, readAccent, readFrost, readPref
 import { CanvasPrefs, colorModeFilter } from './CanvasPrefs';
 import { exportArnm, exportPsd, exportZip } from './formats';
 import { FloatingPicker, type Floater } from './FloatingPicker';
+import { NavigatorView } from './Navigator';
 import { usePinchScale } from './pinch';
 import { mapToPalette } from './palette-map';
 import { Sheet } from './Sheet';
@@ -703,6 +704,30 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
   };
   const guideRef = useRef(guide);
   guideRef.current = guide;
+  const navListeners = useRef(new Set<() => void>());
+  const navSubscribe = useCallback((fn: () => void) => { navListeners.current.add(fn); return () => { navListeners.current.delete(fn); }; }, []);
+  const navDraw = useCallback((ctx: CanvasRenderingContext2D, w: number, h: number) => {
+    ctx.scale(w / W, h / H);
+    composite(ctx, layersRef.current, bgRef.current.color, bgRef.current.visible, { texture: texRef.current });
+  }, [W, H]);
+  const navQuad = useCallback(() => {
+    const c = viewCanvas.current; if (!c) return null;
+    const r = c.getBoundingClientRect();
+    return [toDoc(r.left, r.top), toDoc(r.right, r.top), toDoc(r.right, r.bottom), toDoc(r.left, r.bottom)];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const navJump = useCallback((x: number, y: number) => {
+    const c = viewCanvas.current; if (!c) return;
+    const r = c.getBoundingClientRect();
+    const s = toScreen({ x, y });
+    view.current.x += r.left + r.width / 2 - s.x; view.current.y += r.top + r.height / 2 - s.y;
+    requestRender();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const toggleNavigator = () => {
+    setPanel(null);
+    setFloaters((all) => all.some((f) => f.tab === 'Navigator') ? all.filter((f) => f.tab !== 'Navigator') : [...all.slice(-5), { id: `nav${Date.now()}`, tab: 'Navigator', x: window.innerWidth - 150, y: 230 }]);
+  };
   function requestRender() {
     if (renderQueued.current) return;
     renderQueued.current = true;
@@ -2186,6 +2211,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
       case 'paste': void runAction('paste'); break;
       case 'copy-paste': setClipMenu(true); break;
       case 'reference': void runAction('reference'); break;
+      case 'navigator': toggleNavigator(); break;
       case 'guide': void runAction('guide'); break;
       case 'add-text': void runAction('add-text'); break;
       case 'export-png': void runAction('export-png'); break;
@@ -2221,6 +2247,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
         view.current.x = cx - q.x; view.current.y = cy - q.y; requestRender(); break;
       }
       case 'guide': setGuide((g) => !g); break;
+      case 'navigator': toggleNavigator(); break;
       case 'reference':
         if (referenceId) { setReferenceId(null); flash('Reference off'); }
         else if (layer) { setReferenceId(layer.id); flash(`ColorDrop will follow “${layer.name}”`); }
@@ -3282,6 +3309,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
           onSwap={() => { setPrevColor(color); setColor(prevColor); }}
           onPalettes={setPalettes}
           onDragStart={(hex, e) => startColorDrag(hex, e)}
+          navigator={f.tab === 'Navigator' ? (sz) => <NavigatorView size={sz} docW={W} docH={H} version={version} drawArt={navDraw} viewQuad={navQuad} subscribe={navSubscribe} onJump={navJump} /> : undefined}
           paletteView={paletteView} onPaletteView={setPaletteView}
           onClearHistory={() => setRecent([])}
           onClose={() => { setPanel(null); commitRecent(); }}
@@ -3352,7 +3380,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
         />
       )}
       {!hideUI && panel === 'actions' && (
-        <ActionsSheet tab={actionTab} onTab={setActionTab} guide={guide} reference={!!referenceId} info={infoLines} dark={dark} onDark={setDark} frost={frost} onFrost={setFrost}
+        <ActionsSheet tab={actionTab} onTab={setActionTab} guide={guide} navigator={floaters.some((f) => f.tab === 'Navigator')} reference={!!referenceId} info={infoLines} dark={dark} onDark={setDark} frost={frost} onFrost={setFrost}
           prefsSlot={<CanvasPrefs prefs={prefs} onPrefs={setPrefs} />}
           onAction={(a) => void runAction(a)} onClose={() => setPanel(null)} />
       )}

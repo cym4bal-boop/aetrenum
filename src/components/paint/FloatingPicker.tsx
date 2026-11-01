@@ -8,7 +8,7 @@ import { FloatingPickerFace, type ColorTab, type Palette } from './ColorsSheet';
 import type { HarmonyMode } from './color';
 import { readSize, useSquarePinchResize } from './pinch';
 
-export type Floater = { id: string; tab: ColorTab | 'Palette'; x: number; y: number; paletteId?: string };
+export type Floater = { id: string; tab: ColorTab | 'Palette' | 'Navigator'; x: number; y: number; paletteId?: string };
 const REMOVE_ZONE = 64;
 const MARGIN = 8;
 const DEFAULT_SIZE = 240;
@@ -32,6 +32,7 @@ type Props = {
   onPalettes: (p: Palette[]) => void;
   onPaletteView: (v: 'Compact' | 'Cards') => void;
   onDragStart: (hex: string, e: { clientX: number; clientY: number }) => void;
+  navigator?: (size: number) => React.ReactNode;
 };
 
 /** Strictly keeps a centered (translate: -50% -50%) square element fully inside the viewport. */
@@ -50,7 +51,7 @@ const clampPos = (x: number, y: number, sz: number) => {
 export function FloatingPicker(p: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const storageKey = `pp.floatSize.${p.floater.id}`;
-  const [size, setSize] = useState(() => readSize(storageKey, p.floater.tab === 'Palette' ? 320 : DEFAULT_SIZE, MIN_SIZE, MAX_SIZE));
+  const [size, setSize] = useState(() => readSize(storageKey, p.floater.tab === 'Palette' || p.floater.tab === 'Navigator' ? 260 : DEFAULT_SIZE, MIN_SIZE, MAX_SIZE));
   const sizeRef = useRef(size);
   sizeRef.current = size;
 
@@ -183,7 +184,7 @@ export function FloatingPicker(p: Props) {
         style={{ width: `${innerSize}px`, height: p.floater.tab === 'Value' ? 'auto' : `${innerSize}px` }}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        {p.floater.tab === 'Palette' ? (
+        {p.floater.tab === 'Navigator' ? p.navigator?.(innerSize) : p.floater.tab === 'Palette' ? (
           <PaletteFloat p={p} size={innerSize} />
         ) : (
           <FloatingPickerFace

@@ -293,7 +293,7 @@ export function BrushSheet({
 
 export type ActionId =
   | 'insert-photo' | 'add-text' | 'cut' | 'copy' | 'paste' | 'flip-canvas-h' | 'flip-canvas-v' | 'rotate-canvas'
-  | 'guide' | 'reference' | 'export-png' | 'export-jpg' | 'export-layers' | 'export-psd' | 'export-zip' | 'export-arnm' | 'clear-all' | 'rename' | 'info';
+  | 'guide' | 'reference' | 'navigator' | 'export-png' | 'export-jpg' | 'export-layers' | 'export-psd' | 'export-zip' | 'export-arnm' | 'clear-all' | 'rename' | 'info';
 
 function Switch({ on }: { on: boolean }) {
   return <span className={`pp-ios-switch ${on ? 'on' : ''}`} aria-hidden="true"><span /></span>;
@@ -301,8 +301,8 @@ function Switch({ on }: { on: boolean }) {
 
 type Row = { id?: ActionId; label: string; toggle?: boolean; on?: boolean; onToggle?: () => void; dim?: boolean };
 
-export function ActionsSheet({ onClose, onAction, guide, reference, tab, onTab, info, dark, onDark, frost, onFrost, prefsSlot }: {
-  onClose: () => void; onAction: (a: ActionId) => void; guide: boolean; reference: boolean; tab: string; onTab: (t: string) => void;
+export function ActionsSheet({ onClose, onAction, guide, reference, navigator, tab, onTab, info, dark, onDark, frost, onFrost, prefsSlot }: {
+  onClose: () => void; onAction: (a: ActionId) => void; guide: boolean; reference: boolean; navigator?: boolean; tab: string; onTab: (t: string) => void;
   info: string[]; dark: boolean; onDark: (v: boolean) => void; frost?: boolean; onFrost?: (v: boolean) => void; prefsSlot?: React.ReactNode;
 }) {
   const tabs = [['Add', CopyPlus], ['Canvas', AudioWaveform], ['Share', Share], ['Settings', ToggleRight], ['Help', CircleHelp]] as const;
@@ -311,7 +311,7 @@ export function ActionsSheet({ onClose, onAction, guide, reference, tab, onTab, 
     Add: [[{ id: 'insert-photo', label: 'Insert a photo' }, { id: 'add-text', label: 'Add text' }], [{ id: 'cut', label: 'Cut' }, { id: 'copy', label: 'Copy' }, { id: 'paste', label: 'Paste' }]],
     Canvas: [
       [{ id: 'guide', label: 'Drawing Guide', toggle: true, on: guide }],
-      [{ id: 'reference', label: 'Reference', toggle: true, on: reference }],
+      [{ id: 'reference', label: 'Reference', toggle: true, on: reference }, { id: 'navigator', label: 'Canvas Navigator', toggle: true, on: !!navigator }],
       [{ id: 'flip-canvas-h', label: 'Flip horizontal' }, { id: 'flip-canvas-v', label: 'Flip vertical' }, { id: 'rotate-canvas', label: 'Rotate 90°' }],
       [{ id: 'clear-all', label: 'Clear all layers' }],
       [{ label: 'Canvas information', onToggle: () => onTab('Help') }],

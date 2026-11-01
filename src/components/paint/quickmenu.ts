@@ -27,6 +27,7 @@ export const QUICK_ACTIONS = {
   paste: 'Paste',
   'copy-paste': 'Copy & Paste',
   reference: 'Reference',
+  navigator: 'Canvas Navigator',
   guide: 'Drawing Guide',
   'add-text': 'Add Text',
   'export-png': 'Share PNG',
