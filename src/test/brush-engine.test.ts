@@ -23,7 +23,9 @@ it('pulls the picked-up colour into the paint by the pull amount', () => {
   expect(mixPaint('#000000', null, 1)).toBe('#000000');
   expect(mixPaint('#000000', '#ffffff', 0.5)).toBe('#808080');
 });
-it('has every Pocket gesture switched on by default, QuickMenu on three-finger swipe up', () => {
-  expect([DEFAULT_PREFS.gTapUndo, DEFAULT_PREFS.gTapRedo, DEFAULT_PREFS.gScrubClear, DEFAULT_PREFS.gSwipeCopy, DEFAULT_PREFS.gFullscreen, DEFAULT_PREFS.gQuickPinch]).toEqual([true, true, true, true, true, true]);
+it('has Pocket gestures on by default except fit-to-screen pinch; QuickMenu on', () => {
+  expect([DEFAULT_PREFS.gTapUndo, DEFAULT_PREFS.gTapRedo, DEFAULT_PREFS.gScrubClear, DEFAULT_PREFS.gSwipeCopy, DEFAULT_PREFS.gFullscreen]).toEqual([true, true, true, true, true]);
+  expect(DEFAULT_PREFS.gQuickPinch).toBe(false);
+  expect(DEFAULT_PREFS.quickMenu).toBe(true);
   expect(DEFAULT_PREFS.quickMenuGesture).toBe('three-swipe-up');
 });
