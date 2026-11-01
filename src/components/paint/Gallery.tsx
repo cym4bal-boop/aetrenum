@@ -622,9 +622,18 @@ function NewCanvasSheet({ onClose, onCreate }: { onClose: () => void; onCreate: 
   const [w, setW] = useState('2048');
   const [h, setH] = useState('2048');
   const [name, setName] = useState('Untitled Canvas');
+  const [pv, setPv] = useState<{ w: number; h: number; label: string }>({ w: screen.width, h: screen.height, label: screen.label });
+  const shown = custom ? { w: Math.max(1, Math.min(4096, Number(w) || 1)), h: Math.max(1, Math.min(4096, Number(h) || 1)), label: `${Number(w) || 0} × ${Number(h) || 0}px` } : pv;
+  const ar = shown.w / shown.h;
+  const hover = (p: CanvasPreset) => setPv({ w: p.width, h: p.height, label: p.label });
 
   return (
-    <Sheet onClose={onClose} dim label="New canvas" className="pp-sheet-inset pp-newcanvas">
+    <>
+    <div className="pp-nc-preview" aria-hidden="true">
+      <div className="pp-nc-frame" style={{ aspectRatio: `${shown.w} / ${shown.h}`, width: ar >= 1 ? 'min(78vw, calc(36vh * ' + ar.toFixed(4) + '))' : 'auto', height: ar < 1 ? 'min(36vh, calc(78vw / ' + ar.toFixed(4) + '))' : 'auto' }} />
+      <div className="pp-nc-label">{shown.label}</div>
+    </div>
+    <Sheet onClose={onClose} dim label="New canvas" className="pp-sheet-inset pp-newcanvas" height="50vh">
       <div className="pp-sheet-head">
         <h2>{custom ? 'Custom canvas' : 'New canvas'}</h2>
         <Button variant="paint" size="paint" type="button" className="pp-circle-btn" aria-label={custom ? 'Back to presets' : 'Custom canvas'} onClick={() => setCustom((c) => !c)}>
@@ -644,20 +653,21 @@ function NewCanvasSheet({ onClose, onCreate }: { onClose: () => void; onCreate: 
       ) : (
         <div className="pp-sheet-scroll">
           <div className="pp-group">
-            <PresetRow p={screen} onClick={() => onCreate(screen.width, screen.height)} />
+            <PresetRow p={screen} onPreview={() => hover(screen)} onClick={() => onCreate(screen.width, screen.height)} />
           </div>
           <div className="pp-group pp-group-plain">
-            {presets.map((p, i) => <PresetRow key={i} p={p} onClick={() => onCreate(p.width, p.height, p.name === 'Untitled Canvas' ? undefined : p.name)} />)}
+            {presets.map((p, i) => <PresetRow key={i} p={p} onPreview={() => hover(p)} onClick={() => onCreate(p.width, p.height, p.name === 'Untitled Canvas' ? undefined : p.name)} />)}
           </div>
         </div>
       )}
     </Sheet>
+    </>
   );
 }
 
-function PresetRow({ p, onClick }: { p: CanvasPreset; onClick: () => void }) {
+function PresetRow({ p, onClick, onPreview }: { p: CanvasPreset; onClick: () => void; onPreview?: () => void }) {
   return (
-    <Button variant="paint" size="paint" type="button" className="pp-preset" onClick={onClick}>
+    <Button variant="paint" size="paint" type="button" className="pp-preset" onClick={onClick} onPointerEnter={onPreview} onPointerDown={onPreview} onFocus={onPreview}>
       <span className="pp-preset-name">{p.name}</span>
       <span className="pp-chips"><span>{p.space}</span><span>{p.label}</span></span>
     </Button>
