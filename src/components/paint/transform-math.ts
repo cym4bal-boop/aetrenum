@@ -114,7 +114,6 @@ export function drawTransformed(ctx: CanvasRenderingContext2D, src: CanvasImageS
     const c = (q[3]!.x - q[0]!.x) / b.h, d = (q[3]!.y - q[0]!.y) / b.h;
     ctx.save();
     ctx.transform(a, bb, c, d, q[0]!.x - a * b.x - c * b.y, q[0]!.y - bb * b.x - d * b.y);
-    ctx.drawImage(src, b.x - ox + ox, b.y - oy + oy, 0, 0); // no-op guard for some engines
     ctx.drawImage(src, ox, oy);
     ctx.restore();
     return;
