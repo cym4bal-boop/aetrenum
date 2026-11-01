@@ -98,6 +98,8 @@ export type Prefs = {
   // saving
   savePrompt: boolean;
   historyLimit: number; // max undo steps kept per canvas
+  /** Selection mask visibility 0–100 (Preferences → Delays & Timers) */
+  selMaskVis: number;
   // new project
   timelapse: boolean;
   videoQuality: '720p' | '1080p' | '4K';
@@ -134,6 +136,7 @@ export const DEFAULT_PREFS: Prefs = {
   layerNameSpeed: 30,
   savePrompt: false,
   historyLimit: 10000,
+  selMaskVis: 50,
   timelapse: true,
   videoQuality: '720p',
   volumeKeys: 'nothing',

@@ -46,6 +46,21 @@ type View = { x: number; y: number; scale: number; rot: number; flip: boolean };
 type Rect = { x: number; y: number; w: number; h: number };
 type Selection = { path: Path2D; outlines: Pt[][]; inverted: boolean; bounds: Rect };
 type SelMode = 'Automatic' | 'Freehand' | 'Rectangle' | 'Ellipse';
+let stripeCache: { lw: number; pat: CanvasPattern | null } = { lw: 0, pat: null };
+/** Diagonal-line pattern for areas outside a committed selection (cached per zoom level). */
+function selStripes(ctx: CanvasRenderingContext2D, lw: number) {
+  const k = Math.round(lw * 1000) / 1000;
+  if (stripeCache.pat && stripeCache.lw === k) return stripeCache.pat;
+  const t = document.createElement('canvas'); t.width = 12; t.height = 12;
+  const c = t.getContext('2d')!;
+  c.strokeStyle = 'rgba(20,20,28,0.9)'; c.lineWidth = 2.2;
+  c.beginPath(); c.moveTo(-3, 15); c.lineTo(15, -3); c.moveTo(-3, 3); c.lineTo(3, -3); c.moveTo(9, 15); c.lineTo(15, 9); c.stroke();
+  const pat = ctx.createPattern(t, 'repeat');
+  pat?.setTransform(new DOMMatrix().scale(lw, lw));
+  stripeCache = { lw: k, pat };
+  return pat!;
+}
+
 type Tf = TfState;
 
 const HISTORY_BYTES = 220 * 1024 * 1024;
@@ -101,6 +116,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
   useEffect(() => () => finishFillWave(), []);
 
   const [tool, setTool] = useState<Tool>('brush');
+  const toolRef = useRef(tool); toolRef.current = tool;
   const [brushIds, setBrushIds] = useStored<Record<PaintTool, string>>('pp.brushIds', { brush: 'sleepyhead', smudge: 'soft-brush', eraser: 'soft-brush' });
   const [sizes, setSizes] = useStored<Record<PaintTool, number>>('pp.sizes', { brush: 0.25, smudge: 0.4, eraser: 0.4 });
   const [opacities, setOpacities] = useStored<Record<PaintTool, number>>('pp.opacity', { brush: 1, smudge: 0.7, eraser: 1 });
