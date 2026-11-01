@@ -98,6 +98,8 @@ export function BrushSheet({
     const next = recordRecent(browser, id);
     setBrowser(next); saveBrushBrowser(next); onPick(id);
   };
+  const lpTimer = useRef(0);
+  const lpFired = useRef(false);
   const favorite = (id: string) => {
     const next = toggleFavorite(browser, id);
     setBrowser(next); saveBrushBrowser(next);
@@ -230,7 +232,13 @@ export function BrushSheet({
                 className={`pp-brush pp-pl-brush ${isSel ? 'on' : ''}`}
                 aria-pressed={isSel}
                 title={isSel ? 'Tap again to edit in Brush Studio' : undefined}
+                onPointerDown={() => { lpFired.current = false; window.clearTimeout(lpTimer.current); lpTimer.current = window.setTimeout(() => { lpFired.current = true; favorite(b.id); try { navigator.vibrate?.(12); } catch { /* ignore */ } }, 480); }}
+                onPointerUp={() => window.clearTimeout(lpTimer.current)}
+                onPointerLeave={() => window.clearTimeout(lpTimer.current)}
+                onPointerCancel={() => window.clearTimeout(lpTimer.current)}
+                onContextMenu={(e) => e.preventDefault()}
                 onClick={() => {
+                  if (lpFired.current) { lpFired.current = false; return; }
                   if (isSel && onOpenStudio) onOpenStudio(b);
                   else pick(b.id);
                 }}
@@ -238,7 +246,7 @@ export function BrushSheet({
                 <span className="pp-pl-name">{cleanBrushName(b.name)}</span>
                 <BrushPreview brush={b} selected={isSel} />
               </Button>
-              <Button variant="paint" size="paint" className="pp-brush-favorite" aria-label={`${browser.favorites.includes(b.id) ? 'Unfavorite' : 'Favorite'} ${cleanBrushName(b.name)}`} title={browser.favorites.includes(b.id) ? 'Remove favorite' : 'Add favorite'} aria-pressed={browser.favorites.includes(b.id)} onClick={() => favorite(b.id)}><Star size={16} fill={browser.favorites.includes(b.id) ? 'currentColor' : 'none'} /></Button>
+              {browser.favorites.includes(b.id) && <span className="pp-brush-favorite is-on" aria-label="Favorite"><Star size={14} fill="currentColor" /></span>}
               </div>
             );
           })}
