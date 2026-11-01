@@ -11,8 +11,9 @@
   width: 128px; height: 54px; left: -64px; top: -27px; display: grid; place-items: center; padding: 0 12px;
   font-size: 15px; font-weight: 500; line-height: 1.1; text-align: center; white-space: nowrap; overflow: hidden;
   margin-left: var(--qx); margin-top: var(--qy);
-  animation: pp-qm-in 300ms cubic-bezier(.2,.9,.25,1.15) both;
-  transition: transform 180ms cubic-bezier(.2,.8,.2,1), opacity 180ms ease;
+  animation: pp-qm-in 260ms cubic-bezier(.2,.9,.25,1.2) both;
+  transition: transform 140ms cubic-bezier(.2,.8,.2,1), opacity 140ms ease, background-color 120ms ease;
+  will-change: transform, opacity; contain: layout paint;
   -webkit-touch-callout: none; user-select: none;
 }
 .pp-qm-btn span { position: relative; text-overflow: ellipsis; overflow: hidden; max-width: 100%; }
@@ -26,7 +27,10 @@
   animation: pp-qm-hub-in 260ms cubic-bezier(.2,.8,.2,1) both;
 }
 .pp-qm-hub span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-@keyframes pp-qm-in { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
+@keyframes pp-qm-in { from { opacity: 0; transform: translate(calc(var(--qx) * -1), calc(var(--qy) * -1)) scale(.3); } to { opacity: 1; transform: none; } }
+.pp-qm-btn.is-hot { transform: scale(1.08); }
+.pp-qm-btn.is-hot::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: color-mix(in srgb, var(--pp-active) 28%, transparent); pointer-events: none; }
+.pp-qm-catch { position: absolute; inset: 0; }
 @keyframes pp-qm-hub-in { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
 .pp-qm.is-closing .pp-qm-btn:not(.is-chosen) { opacity: 0; transform: scale(.5); }
 .pp-qm.is-closing .pp-qm-btn.is-chosen { transform: scale(1.12); opacity: 0; transition-duration: 200ms; }

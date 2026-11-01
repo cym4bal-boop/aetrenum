@@ -16,6 +16,9 @@ export function QuickMenu({ x, y, onRun, onClose }: { x: number; y: number; onRu
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [closing, setClosing] = useState<null | number>(null);
+  const [hot, setHot] = useState<number>(-1);
+  const slide = useRef<{ id: number } | null>(null);
+  const slotAt = (cx: number, cy: number) => { const el = document.elementFromPoint(cx, cy)?.closest('[data-qm-slot]') as HTMLElement | null; return el ? Number(el.dataset['qmSlot']) : -1; };
   const hold = useRef<{ timer: number; fired: boolean } | null>(null);
   const lastTap = useRef<{ id: string; t: number } | null>(null);
   const prof = activeProfile(state);
@@ -25,7 +28,9 @@ export function QuickMenu({ x, y, onRun, onClose }: { x: number; y: number; onRu
   const close = (run?: QuickAction, slot = -1) => {
     if (closing !== null) return;
     setClosing(slot);
-    window.setTimeout(() => { onClose(); if (run && run !== 'none') onRun(run); }, 200);
+    // run instantly so the action never waits on the exit animation
+    if (run && run !== 'none') onRun(run);
+    window.setTimeout(onClose, 160);
   };
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
@@ -44,15 +49,17 @@ export function QuickMenu({ x, y, onRun, onClose }: { x: number; y: number; onRu
 
   return (
     <div className={`pp-qm ${closing !== null ? 'is-closing' : ''}`} role="dialog" aria-label="QuickMenu"
+      onPointerMove={(e) => { if (panelOpen || closing !== null) return; const i = slotAt(e.clientX, e.clientY); if (i !== hot) { setHot(i); if (i >= 0) { try { navigator.vibrate?.(6); } catch { /* ignore */ } } } }}
       onPointerDown={(e) => { if (e.target === e.currentTarget) { if (panelOpen) { setPicking(null); setProfiles(false); setRenaming(null); } else close(); } }}>
+      <div className="pp-qm-catch" onPointerUp={(e) => { const i = slotAt(e.clientX, e.clientY); if (i >= 0 && !panelOpen) close(prof.slots[i], i); }} />
       <div className="pp-qm-ring" style={{ left: c.x, top: c.y }}>
         {prof.slots.slice(0, SLOT_COUNT).map((a, i) => (
-          <button key={i} type="button" className={`pp-qm-btn ${closing === i || picking === i ? 'is-chosen' : ''} ${a === 'none' ? 'is-empty' : ''}`}
+          <button key={i} type="button" data-qm-slot={i} className={`pp-qm-btn ${hot === i ? 'is-hot' : ''} ${closing === i || picking === i ? 'is-chosen' : ''} ${a === 'none' ? 'is-empty' : ''}`}
             style={{ '--qx': `${POS[i]![0]}px`, '--qy': `${POS[i]![1]}px`, animationDelay: `${i * 22}ms` } as React.CSSProperties}
             aria-label={`${QUICK_ACTIONS[a]} (hold to change)`}
             onPointerDown={() => startHold(() => { setProfiles(false); setPicking(i); })}
             onPointerUp={() => { const h = endHold(); if (h && !h.fired && !panelOpen) close(a, i); }}
-            onPointerLeave={() => endHold()}
+            onPointerLeave={() => { endHold(); }}
             onContextMenu={(e) => e.preventDefault()}>
             <span>{QUICK_ACTIONS[a]}</span>
           </button>
