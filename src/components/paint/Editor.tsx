@@ -3311,7 +3311,6 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
           onSwap={() => { setPrevColor(color); setColor(prevColor); }}
           onPalettes={setPalettes}
           onDragStart={(hex, e) => startColorDrag(hex, e)}
-          navigator={f.tab === 'Navigator' ? (sz) => <NavigatorView size={sz} docW={W} docH={H} version={version} drawArt={navDraw} viewQuad={navQuad} subscribe={navSubscribe} onJump={navJump} /> : undefined}
           paletteView={paletteView} onPaletteView={setPaletteView}
           onClearHistory={() => setRecent([])}
           onClose={() => { setPanel(null); commitRecent(); }}
@@ -3330,6 +3329,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
           onChange={(c) => setColor(c)} onCommit={() => commitRecent()}
           onHarmony={setHarmony} onPalettes={setPalettes} onPaletteView={setPaletteView}
           onDragStart={(hex, e) => startColorDrag(hex, e)}
+          navigator={f.tab === 'Navigator' ? (sz) => <NavigatorView size={sz} docW={W} docH={H} version={version} drawArt={navDraw} viewQuad={navQuad} subscribe={navSubscribe} onJump={navJump} /> : undefined}
           onMove={(x, y) => { setGrabbedFloater(null); setFloaters((all) => all.map((o) => (o.id === f.id ? { ...o, x, y } : o))); }}
           onRemove={() => { setGrabbedFloater(null); setFloaters((all) => all.filter((o) => o.id !== f.id)); try { localStorage.removeItem(`pp.floatScale.${f.id}`); } catch { /* ignore */ } }} />
       ))}
