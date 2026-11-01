@@ -397,7 +397,6 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
   const [magnetics, setMagnetics] = useStored<boolean>('pp.tf.magnetics', false);
   const [snapDist, setSnapDist] = useStored<number>('pp.tf.snapDist', 12);
   const [advMesh, setAdvMesh] = useState(false);
-  const [tfExpanded, setTfExpanded] = useState(false);
   const [tfPanel, setTfPanel] = useState<null | 'snap' | 'interp'>(null);
   const snapRef = useRef({ on: false, mag: false, dist: 12, adv: false }); snapRef.current = { on: snapOn, mag: magnetics, dist: snapDist, adv: advMesh };
   /** live readout ("Scale 120%", "45°") and snapping guides drawn on the canvas while transforming */
@@ -1577,7 +1576,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
     floatingRef.current = null;
     tfHud.current = { text: null, guides: [] };
     setFloatingOn(false);
-    setTfExpanded(false); setTfPanel(null);
+    setTfPanel(null);
     // once a resize/transform is applied the selection is finished with: clear it
     if (!cancel && selectionRef.current) setSelection(null);
     requestRender();
