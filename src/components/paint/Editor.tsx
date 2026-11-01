@@ -2,7 +2,7 @@
 import { Button } from '@/components/ui/button';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as RPE } from 'react';
 import { applyCanvasEffect } from './canvas-ops';
-import { brushLibrary, brushTip, eraserTip, stampDab, strokeColorOffset, seededRng, brushComposite, registerBrushes, getBrushDef, updateBrushDef, type BrushDef } from './brushes';
+import { brushLibrary, brushTip, eraserTip, stampDab, applyStrokeGrain, usesStrokeGrain, strokeColorOffset, seededRng, brushComposite, registerBrushes, getBrushDef, updateBrushDef, type BrushDef } from './brushes';
 import { BrushStudio } from './BrushStudio';
 import { ColorsSheet, dragOrTap, type ColorTab, type Palette } from './ColorsSheet';
 import { blendModes, composite, ctx2d, flatten, makeCanvas, type Floating, type LayerMeta, type LayerState, type LiveStroke, type Texture } from './doc';
