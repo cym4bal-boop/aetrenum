@@ -2448,9 +2448,9 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
       }
       const d = draftOverlay.current;
       if (selMode === 'Freehand') {
-        if (d && d.kind === 'lasso' && d.points.length > 2) {
+        if (d && d.kind === 'lasso') {
           const o = toScreen(d.points[0]!);
-          if (Math.hypot(o.x - e.clientX, o.y - e.clientY) < 26) { selClose.current = true; return; }
+          if (d.points.length > 2 && Math.hypot(o.x - e.clientX, o.y - e.clientY) < 26) { selClose.current = true; return; }
           d.points.push(p); // polygon line from the previous node, then keep drawing freehand
         } else draftOverlay.current = { kind: 'lasso', points: [p] };
       } else {
