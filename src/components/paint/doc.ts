@@ -54,7 +54,7 @@ export function ctx2d(c: HTMLCanvasElement) {
   return c.getContext('2d', { willReadFrequently: false })!;
 }
 
-export type Floating = { layerId: string; canvas: HTMLCanvasElement; matrix: DOMMatrix };
+export type Floating = { layerId: string; canvas: HTMLCanvasElement; matrix?: DOMMatrix; paint?: (c: CanvasRenderingContext2D) => void };
 export type LiveStroke = { layerId: string; canvas: HTMLCanvasElement; alpha: number; clip: Path2D | null; alphaLock: boolean; blend?: GlobalCompositeOperation };
 
 export type Texture = { image: CanvasImageSource; width: number; height: number; strength: number };
@@ -86,7 +86,7 @@ function content(l: LayerState, all: LayerState[], opts: Opts, depth: number, w:
   const buf = pooled(`${slot}p${depth}`, w, h);
   const c = buf.getContext('2d')!;
   c.drawImage(l.canvas, 0, 0);
-  if (f) { c.save(); c.setTransform(f.matrix); c.drawImage(f.canvas, 0, 0); c.restore(); }
+  if (f) { c.save(); if (f.paint) f.paint(c); else { if (f.matrix) c.setTransform(f.matrix); c.drawImage(f.canvas, 0, 0); } c.restore(); }
   if (s) {
     c.save();
     if (s.clip) c.clip(s.clip, 'evenodd');
