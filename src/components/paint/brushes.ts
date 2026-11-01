@@ -126,6 +126,8 @@ export type BrushDef = {
 
   // 12. Materials
   metallic?: number; // 0 – 1
+  /** Pixel-art brush: hard square dabs snapped to whole pixels, no anti-aliasing. */
+  pixel?: boolean;
   roughness?: number; // 0 – 1
 };
 
@@ -469,6 +471,8 @@ export function eraserTip(brush: BrushDef, px = TIP) {
 }
 
 export type DabInput = {
+  /** texturized grain is applied once to the whole stroke (see strokeGrain), not per dab */
+  strokeGrain?: boolean;
   x: number;
   y: number;
   pressure: number;
@@ -692,7 +696,14 @@ export function stampDab(
   if (d.color && colorDynamic(brush)) useTip = brushTip(brush, jitterColor(brush, pulled ?? d.color, p, d.strokeJitter, rnd), tip.width);
   else if (pulled && pulled !== d.color) useTip = brushTip(brush, pulled, tip.width);
 
-  const grainOn = (brush.grain ?? 0) > 0;
+  if (brush.pixel) {
+    // pixel art: whole-pixel squares, crisp at any zoom
+    const n = Math.max(1, Math.round(s));
+    ctx.fillStyle = d.color ?? '#000';
+    ctx.fillRect(Math.round(x - n / 2), Math.round(y - n / 2), n, n);
+    return n;
+  }
+  const grainOn = (brush.grain ?? 0) > 0 && !(d.strokeGrain && brush.grainMode !== 'moving');
   let depth = brush.grain ?? 0;
   if (grainOn) {
     if (brush.grainMinDepth !== undefined) depth = brush.grainMinDepth * depth + (1 - brush.grainMinDepth) * depth * p;
@@ -752,6 +763,23 @@ export function stampDab(
 
   return s;
 }
+
+/** Canvas-fixed (texturized) grain for a whole stroke: punch it once through the stroke
+ *  buffer so overlapping dabs can't fill the grain back in. */
+export function applyStrokeGrain(ctx: CanvasRenderingContext2D, brush: BrushDef, r: { x: number; y: number; w: number; h: number }) {
+  if (!((brush.grain ?? 0) > 0) || brush.grainMode === 'moving' || brush.pixel) return;
+  const pat = ctx.createPattern(grainHoles(brush), 'repeat');
+  if (!pat) return;
+  const gs = Math.max(0.05, brush.grainScale ?? 1) * 1.2;
+  pat.setTransform(new DOMMatrix().rotateSelf(brush.grainRotation ?? 0).scaleSelf(gs, gs));
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.globalAlpha = Math.min(1, brush.grain ?? 0);
+  ctx.fillStyle = pat;
+  ctx.fillRect(r.x, r.y, r.w, r.h);
+  ctx.restore();
+}
+export const usesStrokeGrain = (brush: BrushDef) => (brush.grain ?? 0) > 0 && brush.grainMode !== 'moving' && !brush.pixel;
 
 /** Small preview stroke for the brush library list. */
 export function drawBrushPreview(canvas: HTMLCanvasElement, brush: BrushDef, color = '#1c1c1e') {

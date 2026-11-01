@@ -273,7 +273,11 @@ export function translateCustomJsonBrush(data: Record<string, any>, rawName = 'C
 
   const name = data['display-name'] || rawName.replace(/\.json$/i, '').replace(/[-_]/g, ' ');
   const headName = String(src['custom-head'] || src['head'] || '');
-  const texName = String(src['custom-stroke texture'] || src['stroke texture'] || '');
+  const texName0 = String(src['custom-stroke texture'] || src['stroke texture'] || '');
+  const lname = String(data['display-name'] || rawName).toLowerCase();
+  // pattern fills ship without a texture file: the pattern is in the name
+  const texName = texName0 || (/checker|screentone|grunge|debris|scratch|halftone|dots?\b|grid|brick/.test(lname) ? lname : '');
+  const isPixel = /pixel/.test(lname);
   const style = headStyle(headName);
   const sizePres = Boolean(dyn['pressure - effects size']);
   const flowPres = Boolean(dyn['pressure - effects flow']);
@@ -324,7 +328,8 @@ export function translateCustomJsonBrush(data: Record<string, any>, rawName = 'C
     dilution: wet ? c01(n(blend['mix-in dilution'], 0)) : 0,
     pull: wet ? c01(n(blend['smudge-amount'], 0)) * 0.6 : 0,
     smudge: 0,
-    streamline: Math.round(c01(n(stroke['lazy-stroke'], 0)) * 100),
+    streamline: isPixel ? 0 : Math.round(c01(n(stroke['lazy-stroke'], 0)) * 100),
+    ...(isPixel ? { pixel: true, spacing: 0.1, hardness: 1, taper: 0, taperSize: 0, sizePressure: 0, opacityPressure: 0, grain: 0, grainImage: undefined, minSize: 1 } : {}),
   }, name);
 }
 
