@@ -6,6 +6,8 @@ import { brushLibrary, brushTip, eraserTip, stampDab, strokeColorOffset, seededR
 import { BrushStudio } from './BrushStudio';
 import { ColorsSheet, dragOrTap, type ColorTab, type Palette } from './ColorsSheet';
 import { blendModes, composite, ctx2d, flatten, makeCanvas, type Floating, type LayerMeta, type LayerState, type LiveStroke, type Texture } from './doc';
+import { centroid, drawTransformed, dragMesh, homography, locate, meshFromQuad, patch, pointInQuad, quadToQuad, rectQuad, rotateAbout, type TfState } from './transform-math';
+import { alphaMask, boundsOf, combine, emptyMask, floodMask, invert as invertMask, isEmpty as maskEmpty, rasterize, trace } from './selection-mask';
 import { blockRange, moveRow, visibleRows } from './layer-tree';
 import { resolveTexture, textures } from './textures';
 import { adjustShort } from './Panels';
@@ -43,8 +45,8 @@ type Panel = null | 'colors' | 'layers' | 'brush' | 'actions' | 'adjust';
 type View = { x: number; y: number; scale: number; rot: number; flip: boolean };
 type Rect = { x: number; y: number; w: number; h: number };
 type Selection = { path: Path2D; outlines: Pt[][]; inverted: boolean; bounds: Rect };
-type SelMode = 'Freehand' | 'Rectangle' | 'Ellipse';
-type Tf = { tx: number; ty: number; scale: number; rot: number; fx: number; fy: number };
+type SelMode = 'Automatic' | 'Freehand' | 'Rectangle' | 'Ellipse';
+type Tf = TfState;
 
 const HISTORY_BYTES = 220 * 1024 * 1024;
 const WORKSPACE = '#e4e4e4';
@@ -372,8 +374,18 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
   const dropRef = useRef(drop); dropRef.current = drop;
   const dropGesture = useRef<{ pts: Map<number, { x: number; y: number }>; panning: boolean; moved: boolean; pan: null | { c0: { x: number; y: number }; d0: number; a0: number; v0: View; n: number; anchor: { x: number; y: number }; r: DOMRect }; startX: number; startY: number; startT: number; raf: number; pending: number | null }>({ pts: new Map(), panning: false, moved: false, pan: null, startX: 0, startY: 0, startT: 0, raf: 0, pending: null });
   const [clipMenu, setClipMenu] = useState(false); // three-finger swipe down: cut / copy / paste
-  const [tf, setTfState] = useState<Tf>({ tx: 0, ty: 0, scale: 1, rot: 0, fx: 1, fy: 1 });
-  const [tfMode, setTfMode] = useState<'Freeform' | 'Uniform'>('Uniform');
+  const [tf, setTfState] = useState<Tf>({ quad: rectQuad({ x: 0, y: 0, w: 1, h: 1 }), mesh: null });
+  const [tfMode, setTfModeState] = useState<'Freeform' | 'Uniform' | 'Distort' | 'Warp'>('Uniform');
+  const tfModeRef = useRef(tfMode); tfModeRef.current = tfMode;
+  const [snapOn, setSnapOn] = useStored<boolean>('pp.tf.snap', false);
+  const [magnetics, setMagnetics] = useStored<boolean>('pp.tf.magnetics', false);
+  const [snapDist, setSnapDist] = useStored<number>('pp.tf.snapDist', 12);
+  const [advMesh, setAdvMesh] = useState(false);
+  const [tfExpanded, setTfExpanded] = useState(false);
+  const [tfPanel, setTfPanel] = useState<null | 'snap' | 'interp'>(null);
+  const snapRef = useRef({ on: false, mag: false, dist: 12, adv: false }); snapRef.current = { on: snapOn, mag: magnetics, dist: snapDist, adv: advMesh };
+  /** live readout ("Scale 120%", "45°") and snapping guides drawn on the canvas while transforming */
+  const tfHud = useRef<{ text: string | null; guides: { x?: number; y?: number; canvas: boolean }[] }>({ text: null, guides: [] });
   const [interp, setInterp] = useStored<'Nearest neighbor' | 'Bilinear' | 'Bicubic'>('pp.interp', 'Nearest neighbor');
   const interpRef = useRef(interp); interpRef.current = interp;
   const cycleInterp = () => {
@@ -384,6 +396,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
   };
   const tfRef = useRef(tf);
   const floatingRef = useRef<null | { layerId: string; canvas: HTMLCanvasElement; bounds: Rect }>(null);
+  const tfLive = useRef(false);
   const [floatingOn, setFloatingOn] = useState(false);
   const [textDraft, setTextDraft] = useState<null | TextDraft>(null);
   /** live text layer hidden while its edit preview is on screen */
@@ -499,10 +512,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
     requestRender();
   }
 
-  const tfMatrix = (t: Tf, b: Rect) => {
-    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
-    return new DOMMatrix().translate(cx + t.tx, cy + t.ty).rotate(t.rot).scale(t.scale * t.fx, t.scale * t.fy).translate(-cx, -cy);
-  };
+  const smoothFor = () => interpRef.current !== 'Nearest neighbor';
 
   const render = () => {
     renderQueued.current = false;
@@ -534,7 +544,10 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
       for (let y = 0; y < H; y += sz) for (let x = (Math.floor(y / sz) % 2) * sz; x < W; x += sz * 2) ctx.fillRect(x, y, sz, sz);
     }
     const f = floatingRef.current;
-    const floating: Floating | null = f ? { layerId: f.layerId, canvas: f.canvas, matrix: tfMatrix(tfRef.current, f.bounds) } : null;
+    const floating: Floating | null = f ? { layerId: f.layerId, canvas: f.canvas, paint: (cx) => {
+      cx.imageSmoothingQuality = interpRef.current === 'Bicubic' ? 'high' : 'medium';
+      drawTransformed(cx, f.canvas, f.bounds, f.bounds.x, f.bounds.y, tfRef.current, tfLive.current ? 'live' : 'final', smoothFor());
+    } } : null;
     const hiddenText = textPreview.current ? textHidden.current : null;
     const renderedLayers0 = hiddenText ? layersRef.current.filter((l) => l.id !== hiddenText) : layersRef.current;
     const renderedLayers = fillReveal.current ? renderedLayers0.map((layer) => layer.id === fillReveal.current?.layerId ? { ...layer, canvas: fillReveal.current.canvas } : layer) : renderedLayers0;
@@ -586,19 +599,46 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
       });
     }
     if (f && floating) {
+      const t = tfRef.current, q = t.quad;
+      const accent = '#0a84ff';
       ctx.save();
-      ctx.setTransform(m.multiply(floating.matrix));
-      const s = tfRef.current.scale;
-      ctx.lineWidth = lw / s * 1.5;
-      ctx.strokeStyle = '#0a84ff';
-      ctx.setLineDash([6 * lw / s, 4 * lw / s]);
-      ctx.strokeRect(f.bounds.x, f.bounds.y, f.bounds.w, f.bounds.h);
-      ctx.setLineDash([]);
-      ctx.fillStyle = '#fff';
-      const hs = 7 * lw / s;
-      [[0, 0], [1, 0], [1, 1], [0, 1]].forEach(([a, b]) => {
-        ctx.beginPath(); ctx.arc(f.bounds.x + a * f.bounds.w, f.bounds.y + b * f.bounds.h, hs, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      });
+      ctx.lineWidth = lw * 1.5;
+      if (t.mesh) {
+        // Warp: solid border + mesh lines through the surface
+        const P = patch(t.mesh);
+        ctx.strokeStyle = accent;
+        ctx.beginPath();
+        for (let k = 0; k <= 3; k++) {
+          for (let i = 0; i <= 24; i++) { const pt = P(i / 24, k / 3); i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y); }
+          for (let i = 0; i <= 24; i++) { const pt = P(k / 3, i / 24); i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y); }
+        }
+        ctx.stroke();
+      } else {
+        ctx.beginPath(); q.forEach((pt, i) => (i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y))); ctx.closePath();
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.stroke();
+        ctx.setLineDash([6 * lw, 4 * lw]); ctx.lineDashOffset = -(performance.now() / 60) % (10 * lw);
+        ctx.strokeStyle = accent; ctx.stroke(); ctx.setLineDash([]);
+      }
+      const node = (pt: Pt, fill: string, r = 7) => { ctx.beginPath(); ctx.arc(pt.x, pt.y, r * lw, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = lw * 1.5; ctx.strokeStyle = '#fff'; ctx.stroke(); };
+      for (const h of tfHandles()) node(h.p, h.kind === 'rotate' ? '#34c759' : accent, h.kind === 'rotate' ? 7.5 : 7);
+      // snapping guides: blue to other content, yellow to the canvas
+      for (const g of tfHud.current.guides) {
+        ctx.beginPath(); ctx.strokeStyle = g.canvas ? '#ffd60a' : accent; ctx.lineWidth = lw * 1.2;
+        if (g.x !== undefined) { ctx.moveTo(g.x, 0); ctx.lineTo(g.x, H); } else if (g.y !== undefined) { ctx.moveTo(0, g.y); ctx.lineTo(W, g.y); }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    if (f && tfHud.current.text) {
+      const d = window.devicePixelRatio || 1;
+      ctx.save(); ctx.setTransform(d, 0, 0, d, 0, 0);
+      const r = c.getBoundingClientRect();
+      ctx.font = '600 14px system-ui, sans-serif';
+      const tw = ctx.measureText(tfHud.current.text).width + 28;
+      ctx.fillStyle = 'rgba(28,28,30,0.82)';
+      ctx.beginPath(); ctx.roundRect((r.width - tw) / 2, 64, tw, 32, 16); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(tfHud.current.text, r.width / 2, 80);
       ctx.restore();
     }
     // live brush size / opacity preview, drawn directly on the canvas.
