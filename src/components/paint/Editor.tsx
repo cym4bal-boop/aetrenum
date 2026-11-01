@@ -906,7 +906,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
     const st: StrokeState = { tool: t, brush, tip: t === 'brush' ? brushTip(brush, color) : eraserTip(brush), size, layer, last: p, smooth: p, travelled: 0, residual: 0, started: performance.now(), pressure, raw: [p], bbox: null, shape: null, lastT: performance.now(), speed: 0, tilt: penTilt.current, sj: strokeColorOffset(brush), seed: (Math.random() * 2 ** 31) | 0, dabs: [] };
     if (t === 'brush') {
       ctx2d(strokeCanvas.current!).clearRect(0, 0, W, H);
-      live.current = { layerId: layer.id, canvas: strokeCanvas.current!, alpha: opacities.brush, clip: selectionRef.current?.path ?? null, alphaLock: layer.alphaLock, blend: brushComposite(brush.blendMode) };
+      live.current = { layerId: layer.id, canvas: strokeCanvas.current!, alpha: opacities.brush, clip: selectionRef.current?.path ?? null, alphaLock: layer.alphaLock, blend: brushComposite(brush.blendMode), post: usesStrokeGrain(brush) ? (c) => { const bb = stroke.current?.bbox; if (bb) applyStrokeGrain(c, brush, bb); } : undefined };
     }
     if (t === 'smudge') {
       const s = Math.ceil(size) + 2;
@@ -941,7 +941,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
       const c = ctx2d(strokeCanvas.current!);
       const pickup = (st.brush.pull ?? 0) > 0 ? pickupAt(st, p) : null;
       if (rec) rec.pickup = pickup;
-      const s = stampDab(c, st.tip, st.brush, { ...p, pressure, travelled: st.travelled, dx: st.dir?.x, dy: st.dir?.y, speed: st.speed, tilt: st.tilt, color: colorRef.current, strokeJitter: st.sj, rng, pickup }, st.size);
+      const s = stampDab(c, st.tip, st.brush, { ...p, pressure, travelled: st.travelled, dx: st.dir?.x, dy: st.dir?.y, speed: st.speed, tilt: st.tilt, color: colorRef.current, strokeJitter: st.sj, rng, pickup, strokeGrain: true }, st.size);
       st.bbox = unionRect(st.bbox, { x: p.x - s, y: p.y - s, w: s * 2, h: s * 2 });
       if (rec) st.dabs!.push(rec);
     } else if (st.tool === 'eraser') {
@@ -1081,7 +1081,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
           const endK = Math.max(0, Math.min(1, (T - r.travelled) / endLen));
           const rng = seededRng((st.seed ?? 1) + i * 7919);
           if (eraser) stampDab(c, st.tip, st.brush, { ...r, rng, endK }, st.size, opacities.eraser);
-          else stampDab(c, st.tip, st.brush, { ...r, color: colorRef.current, strokeJitter: st.sj, rng, endK }, st.size);
+          else stampDab(c, st.tip, st.brush, { ...r, color: colorRef.current, strokeJitter: st.sj, rng, endK, strokeGrain: true }, st.size);
         });
       };
       if (st.tool === 'brush') { const c = ctx2d(strokeCanvas.current!); c.clearRect(0, 0, W, H); replay(c, false); }
@@ -1093,6 +1093,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
       }
     }
     if (st.tool === 'brush') {
+      if (usesStrokeGrain(st.brush)) applyStrokeGrain(ctx2d(strokeCanvas.current!), st.brush, st.shape ? { x: 0, y: 0, w: W, h: H } : st.bbox ?? { x: 0, y: 0, w: W, h: H });
       const c = ctx2d(st.layer.canvas);
       c.save();
       if (selectionRef.current) c.clip(selectionRef.current.path, 'evenodd');

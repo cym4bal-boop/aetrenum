@@ -55,7 +55,7 @@ export function ctx2d(c: HTMLCanvasElement) {
 }
 
 export type Floating = { layerId: string; canvas: HTMLCanvasElement; matrix?: DOMMatrix; paint?: (c: CanvasRenderingContext2D) => void };
-export type LiveStroke = { layerId: string; canvas: HTMLCanvasElement; alpha: number; clip: Path2D | null; alphaLock: boolean; blend?: GlobalCompositeOperation };
+export type LiveStroke = { layerId: string; canvas: HTMLCanvasElement; alpha: number; clip: Path2D | null; alphaLock: boolean; blend?: GlobalCompositeOperation; post?: (c: CanvasRenderingContext2D) => void };
 
 export type Texture = { image: CanvasImageSource; width: number; height: number; strength: number };
 
@@ -93,7 +93,13 @@ function content(l: LayerState, all: LayerState[], opts: Opts, depth: number, w:
     c.globalAlpha = s.alpha;
     if (s.alphaLock) c.globalCompositeOperation = 'source-atop';
     else if (s.blend) c.globalCompositeOperation = s.blend;
-    c.drawImage(s.canvas, 0, 0);
+    if (s.post) {
+      const t = pooled(`${slot}s${depth}`, w, h);
+      const tc = t.getContext('2d')!;
+      tc.drawImage(s.canvas, 0, 0);
+      s.post(tc);
+      c.drawImage(t, 0, 0);
+    } else c.drawImage(s.canvas, 0, 0);
     c.restore();
   }
   return buf;

@@ -183,6 +183,7 @@ export function sanitizeBrushDef(b: { [K in keyof BrushDef]?: BrushDef[K] | unde
     // Materials
     metallic: clamp(b.metallic, 0, 1, 0),
     roughness: clamp(b.roughness, 0, 1, 0),
+    ...(b.pixel ? { pixel: true } : {}),
   };
 }
 
