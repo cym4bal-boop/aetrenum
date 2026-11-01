@@ -252,6 +252,9 @@ export function translateMyPaintBrush(obj: Record<string, any>, rawName = 'MyPai
     smudge,
     taper: 0.3,
     grain: 0.1,
+    // pixel-art brushes (anti-aliasing off): crisp whole-pixel squares, no lag
+    ...(/pixel/i.test(cleanName) || getVal('anti_aliasing', 1) === 0 && maxSize <= 80 && hardness >= 0.95
+      ? { pixel: true, spacing: 0.1, hardness: 1, taper: 0, sizePressure: 0, opacityPressure: 0, grain: 0, streamline: Math.min(streamline, 20), minSize: 1 } : {}),
   }, cleanName);
 }
 
