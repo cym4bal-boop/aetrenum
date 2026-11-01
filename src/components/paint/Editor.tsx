@@ -1228,6 +1228,16 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
   const floodCache = useRef<{ key?: HTMLCanvasElement; data?: Uint8ClampedArray }>({});
   /** Automatic selection session: the seed, the selection before it, and the live threshold. */
   const selClose = useRef(false);
+  const selHold = useRef<{ t: number; fired: boolean }>({ t: 0, fired: false });
+  const reloadSelection = () => {
+    const l = lastSel.current ?? selectionRef.current?.outlines;
+    if (!l) { flash('No previous selection'); return; }
+    if (floatingRef.current) commitTransform();
+    const n = buildSel(l);
+    setSelection(n);
+    setTool('select');
+    flash('Mask Reloaded');
+  };
   const autoSel = useRef<null | { p: Pt; base: Pt[][] | null; thr: number; client: Pt; t: number; holding: boolean; raf: number }>(null);
   const autoThreshold = useRef(30);
   const runAuto = (p: Pt, base: Pt[][] | null, thr: number) => {
@@ -2129,7 +2139,13 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
     if (adjust) endAdjust(false);
     setDrop(null);
     if (t === tool && (t === 'brush' || t === 'smudge' || t === 'eraser')) { setPanel(panel === 'brush' ? null : 'brush'); return; }
-    if (t === tool && t === 'select') { setSelection(null); }
+    if (t !== 'select' && tool === 'select') commitDraft('add');
+    if (t === tool && t === 'select') {
+      // tapping Selection again cancels the selection and returns to the artwork
+      draftOverlay.current = null;
+      if (selectionRef.current) lastSel.current = selectionRef.current.outlines;
+      setSelection(null); setTool('brush'); return;
+    }
     setTool(t);
     if (t === 'transform') startTransform();
   };
@@ -2662,6 +2678,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
         }
         gesture.current = null;
         mode.current = 'idle';
+        if (tfLive.current) { tfLive.current = false; tfHud.current = { text: null, guides: [] }; requestRender(); }
       }
       return;
     }
@@ -3009,7 +3026,11 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
             </Button>
             <Button variant="paint" size="paint" type="button" className={`pp-sub ${panel === 'actions' ? 'on' : ''}`} aria-label="Actions" onClick={() => setPanel(panel === 'actions' ? null : 'actions')}><WrenchGlyph size={18} /></Button>
 
-            <Button variant="paint" size="paint" type="button" className={`pp-sub ${tool === 'select' ? 'on' : ''}`} aria-label="Selection" onClick={() => chooseTool('select')}><SelectGlyph size={17} /></Button>
+            <Button variant="paint" size="paint" type="button" className={`pp-sub ${tool === 'select' || (selection && tool !== 'transform') ? 'on' : ''}`} aria-label="Selection (hold to reload the last selection)"
+              onPointerDown={() => { selHold.current.fired = false; window.clearTimeout(selHold.current.t); selHold.current.t = window.setTimeout(() => { selHold.current.fired = true; reloadSelection(); }, 480); }}
+              onPointerUp={() => window.clearTimeout(selHold.current.t)} onPointerLeave={() => window.clearTimeout(selHold.current.t)}
+              onContextMenu={(e) => e.preventDefault()}
+              onClick={() => { if (selHold.current.fired) { selHold.current.fired = false; return; } chooseTool('select'); }}><SelectGlyph size={17} /></Button>
             <Button variant="paint" size="paint" type="button" className={`pp-sub ${tool === 'transform' ? 'on' : ''}`} aria-label="Transform" onClick={() => chooseTool(tool === 'transform' ? 'brush' : 'transform')}><ArrowGlyph size={17} /></Button>
             <Button variant="paint" size="paint" type="button" className="pp-sub pp-fold-btn" aria-label="Fold toolbar" onClick={() => toggleToolbar(false)}><DotsGlyph size={16} /></Button>
           </div>
