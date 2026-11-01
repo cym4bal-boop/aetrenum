@@ -17,7 +17,6 @@ export function QuickMenu({ x, y, onRun, onClose }: { x: number; y: number; onRu
   const [draft, setDraft] = useState('');
   const [closing, setClosing] = useState<null | number>(null);
   const [hot, setHot] = useState<number>(-1);
-  const slide = useRef<{ id: number } | null>(null);
   const slotAt = (cx: number, cy: number) => { const el = document.elementFromPoint(cx, cy)?.closest('[data-qm-slot]') as HTMLElement | null; return el ? Number(el.dataset['qmSlot']) : -1; };
   const hold = useRef<{ timer: number; fired: boolean } | null>(null);
   const lastTap = useRef<{ id: string; t: number } | null>(null);
@@ -49,9 +48,9 @@ export function QuickMenu({ x, y, onRun, onClose }: { x: number; y: number; onRu
 
   return (
     <div className={`pp-qm ${closing !== null ? 'is-closing' : ''}`} role="dialog" aria-label="QuickMenu"
+      onPointerUp={(e) => { if (e.target !== e.currentTarget || panelOpen) return; const i = slotAt(e.clientX, e.clientY); if (i >= 0) close(prof.slots[i], i); }}
       onPointerMove={(e) => { if (panelOpen || closing !== null) return; const i = slotAt(e.clientX, e.clientY); if (i !== hot) { setHot(i); if (i >= 0) { try { navigator.vibrate?.(6); } catch { /* ignore */ } } } }}
       onPointerDown={(e) => { if (e.target === e.currentTarget) { if (panelOpen) { setPicking(null); setProfiles(false); setRenaming(null); } else close(); } }}>
-      <div className="pp-qm-catch" onPointerUp={(e) => { const i = slotAt(e.clientX, e.clientY); if (i >= 0 && !panelOpen) close(prof.slots[i], i); }} />
       <div className="pp-qm-ring" style={{ left: c.x, top: c.y }}>
         {prof.slots.slice(0, SLOT_COUNT).map((a, i) => (
           <button key={i} type="button" data-qm-slot={i} className={`pp-qm-btn ${hot === i ? 'is-hot' : ''} ${closing === i || picking === i ? 'is-chosen' : ''} ${a === 'none' ? 'is-empty' : ''}`}
