@@ -2438,3 +2438,8 @@ html.pp-theme-changing, html.pp-theme-changing *:not(canvas) {
 .pp-range { width: 100%; accent-color: var(--pp-active); height: 28px; }
 .pp-switch { width: 44px; height: 26px; accent-color: var(--pp-active); }
 @keyframes pp-sel-panel-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Canvas Navigator floating window */
+.pp-nav { display: grid; place-items: center; }
+.pp-nav-frame { position: relative; border-radius: 6px; overflow: hidden; box-shadow: 0 0 0 1px oklch(0 0 0 / .15), 0 4px 14px oklch(0 0 0 / .25); touch-action: none; cursor: crosshair; background: oklch(1 0 0); contain: strict; }
+.pp-nav-frame canvas { position: absolute; inset: 0; display: block; }
