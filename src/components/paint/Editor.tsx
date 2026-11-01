@@ -2554,7 +2554,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
         {kind === 'size' && <span className="pp-vlabel">{pct}</span>}
         <div
           className={`pp-bslider ${active ? 'is-active' : ''}`}
-          style={{ height, '--v': value.toFixed(4) } as React.CSSProperties}
+          style={{ height, '--v': value.toFixed(4), '--h': typeof height === 'number' ? `${height}px` : height } as React.CSSProperties}
           role="slider"
           tabIndex={0}
           aria-valuemin={1}
