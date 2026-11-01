@@ -480,7 +480,7 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
       setReady(true);
       fitView();
       const ss = artwork.selection;
-      if (ss?.outlines?.[0]?.length) { const sel = buildSelection(ss.outlines[0], ss.inverted); if (sel) setSelection(sel); }
+      if (ss?.outlines?.[0]?.length) { const sel = ss.inverted ? buildSelection(ss.outlines[0], true) : buildSel(ss.outlines); if (sel) setSelection(sel); }
       // undo/redo history survives leaving the canvas; never wipe stacks the user
       // already started building while the async load was in flight
       void loadHistory(artwork.id).then((h) => {
@@ -1202,17 +1202,74 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
   };
 
   /* ---------- selection ---------- */
-  const buildSelection = (outline: Pt[], inverted = false): Selection | null => {
-    if (outline.length < 3) return null;
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    outline.forEach((p) => { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); });
-    if (maxX - minX < 2 && maxY - minY < 2) return null;
+  const buildSel = (outlines: Pt[][]): Selection | null => {
+    const loops = outlines.filter((o) => o.length >= 3);
+    if (!loops.length) return null;
+    const bb = boundsOf(loops);
+    if (bb.w < 1 && bb.h < 1) return null;
     const path = new Path2D();
-    if (inverted) path.rect(0, 0, W, H);
-    outline.forEach((p, i) => (i ? path.lineTo(p.x, p.y) : path.moveTo(p.x, p.y)));
-    path.closePath();
-    const bounds = inverted ? { x: 0, y: 0, w: W, h: H } : clipRect({ x: minX, y: minY, w: maxX - minX, h: maxY - minY });
-    return { path, outlines: [outline], inverted, bounds };
+    for (const o of loops) { o.forEach((p, i) => (i ? path.lineTo(p.x, p.y) : path.moveTo(p.x, p.y))); path.closePath(); }
+    return { path, outlines: loops, inverted: false, bounds: clipRect(bb) };
+  };
+  const buildSelection = (outline: Pt[], inverted = false): Selection | null => {
+    if (!inverted) return buildSel([outline]);
+    return buildSel(trace(invertMask(rasterize([outline], W, H))));
+  };
+  /** Add / Remove a shape to the current selection (Procreate's Add / Remove buttons). */
+  const applySel = (shape: Pt[][], op: 'add' | 'remove') => {
+    const cur = selectionRef.current;
+    if (!cur) { if (op === 'add') { const n = buildSel(shape); if (n) { setSelection(n); lastSel.current = n.outlines; } } return; }
+    const m = combine(rasterize(cur.outlines, W, H), rasterize(shape, W, H), op);
+    const n = maskEmpty(m) ? null : buildSel(trace(m));
+    setSelection(n);
+    if (n) lastSel.current = n.outlines;
+  };
+  const lastSel = useRef<Pt[][] | null>(null);
+  const floodCache = useRef<{ key?: HTMLCanvasElement; data?: Uint8ClampedArray }>({});
+  /** Automatic selection session: the seed, the selection before it, and the live threshold. */
+  const autoSel = useRef<null | { p: Pt; base: Pt[][] | null; thr: number; client: Pt; t: number; holding: boolean; raf: number }>(null);
+  const autoThreshold = useRef(30);
+  const runAuto = (p: Pt, base: Pt[][] | null, thr: number) => {
+    const layer = active();
+    if (!layer) return;
+    let m = floodMask(layer.canvas, W, H, p.x, p.y, thr, floodCache.current);
+    if (base) m = combine(rasterize(base, W, H), m, 'add');
+    const n = maskEmpty(m) ? null : buildSel(trace(m));
+    setSelection(n);
+    if (n) lastSel.current = n.outlines;
+  };
+  /** commits an unfinished Freehand / Rectangle / Ellipse draft */
+  const commitDraft = (op: 'add' | 'remove' = 'add') => {
+    const d = draftOverlay.current;
+    draftOverlay.current = null;
+    if (!d) return false;
+    const outline = d.kind === 'lasso' ? d.points : d.kind === 'rect' ? rectPts(d.from, d.to) : ellipsePts(d.from, d.to);
+    if (outline.length >= 3) applySel([outline], op);
+    requestRender();
+    return true;
+  };
+  const featherSel = (px: number) => {
+    const cur = selectionRef.current;
+    if (!cur || px <= 0) return;
+    const n = buildSel(trace(rasterize(cur.outlines, W, H, px)));
+    setSelection(n); if (n) lastSel.current = n.outlines;
+  };
+  const [savedSels, setSavedSels] = useState<{ id: string; name: string; outlines: Pt[][]; thumb: string }[]>(() => {
+    try { return JSON.parse(localStorage.getItem(`pp.sels.${artwork.id}`) ?? '[]'); } catch { return []; }
+  });
+  const saveCurrentSel = () => {
+    const cur = selectionRef.current;
+    if (!cur) { flash('Make a selection first'); return; }
+    const t = document.createElement('canvas'); const k = 64 / Math.max(W, H); t.width = Math.max(1, Math.round(W * k)); t.height = Math.max(1, Math.round(H * k));
+    const c = t.getContext('2d')!; c.fillStyle = '#3a3a3c'; c.fillRect(0, 0, t.width, t.height); c.scale(k, k); c.fillStyle = '#fff'; c.fill(cur.path, 'evenodd');
+    const next = [...savedSels, { id: `s${Date.now()}`, name: `Selection ${savedSels.length + 1}`, outlines: cur.outlines.map((o) => o.map((p) => ({ x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 }))), thumb: t.toDataURL() }];
+    setSavedSels(next);
+    try { localStorage.setItem(`pp.sels.${artwork.id}`, JSON.stringify(next)); } catch { flash('Saved for this session only'); }
+  };
+  const deleteSavedSel = (id: string) => {
+    const next = savedSels.filter((x) => x.id !== id);
+    setSavedSels(next);
+    try { localStorage.setItem(`pp.sels.${artwork.id}`, JSON.stringify(next)); } catch { /* ignore */ }
   };
   const ellipsePts = (a: Pt, b: Pt) => {
     const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2, rx = Math.abs(b.x - a.x) / 2, ry = Math.abs(b.y - a.y) / 2;
@@ -1225,8 +1282,8 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
     const layer = active();
     if (a === 'all') { setSelection(buildSelection([{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: H }, { x: 0, y: H }])); return; }
     if (!sel) { flash('Draw a selection first'); return; }
-    if (a === 'clear') { setSelection(null); return; }
-    if (a === 'invert') { setSelection(buildSelection(sel.outlines[0], !sel.inverted)); return; }
+    if (a === 'clear') { setSelection(null); draftOverlay.current = null; return; }
+    if (a === 'invert') { const n = buildSel(trace(invertMask(rasterize(sel.outlines, W, H)))); setSelection(n); if (n) lastSel.current = n.outlines; return; }
     if (!layer) return;
     if (a === 'copy-paste') { copySelection(false); pasteClipboard(); return; }
     pushHistory([layer.id]);
@@ -1403,12 +1460,11 @@ export function Editor({ artwork, onExit, onSaved }: { artwork: Artwork; onExit:
       const name = window.prompt('Layer name', l.name);
       if (name) updateLayer(id, { name });
     } else if (a === 'select') {
-      // select the non-transparent pixels' bounding box
-      const small = l.canvas.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, W, H).data;
-      let minX = W, minY = H, maxX = -1, maxY = -1;
-      for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) if (small[(y * W + x) * 4 + 3] > 8) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
-      if (maxX < 0) { flash('Layer is empty'); return; }
-      setSelection(buildSelection(rectPts({ x: minX, y: minY }, { x: maxX + 2, y: maxY + 2 })));
+      // Select layer contents: only painted pixels, respecting transparency
+      const m = alphaMask(l.canvas, W, H);
+      if (maskEmpty(m)) { flash('Layer is empty'); return; }
+      const n = buildSel(trace(m));
+      setSelection(n); if (n) lastSel.current = n.outlines;
       setTool('select');
     }
   };
