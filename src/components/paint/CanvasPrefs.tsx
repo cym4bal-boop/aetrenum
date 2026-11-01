@@ -35,7 +35,7 @@ export function CanvasPrefs({ prefs, onPrefs }: { prefs: Prefs; onPrefs: (p: Pre
         <PrefToggle label="Three-finger scrub: clear layer" on={prefs.gScrubClear} onChange={(v) => set({ gScrubClear: v })} />
         <PrefToggle label="Three-finger swipe down: Copy & Paste" on={prefs.gSwipeCopy} onChange={(v) => set({ gSwipeCopy: v })} />
         <PrefToggle label="Four-finger tap: full screen" on={prefs.gFullscreen} onChange={(v) => set({ gFullscreen: v })} />
-        <PrefToggle label="Quick pinch: fit to screen" on={prefs.gQuickPinch} onChange={(v) => set({ gQuickPinch: v })} />
+        <PrefToggle label="Fit to screen gesture (quick pinch)" on={prefs.gQuickPinch} onChange={(v) => set({ gQuickPinch: v })} />
         <PrefCycle label="QuickMenu" value={prefs.quickMenuGesture} options={['three-swipe-up', 'four-hold', 'off'] as const} onChange={(v) => set({ quickMenuGesture: v })} />
         <ResetButton label="Reset gestures" onReset={() => onPrefs(resetPrefs(GESTURES))} />
       </PrefSection>

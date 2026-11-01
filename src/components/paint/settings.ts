@@ -116,9 +116,9 @@ export const DEFAULT_PREFS: Prefs = {
   gScrubClear: true,
   gSwipeCopy: true,
   gFullscreen: true,
-  gQuickPinch: true,
+  gQuickPinch: false,
   quickMenuGesture: 'three-swipe-up',
-  quickMenu: false,
+  quickMenu: true,
   drawCursor: false,
   shapeDetection: true,
   curvePressure: 'linear',
@@ -144,6 +144,8 @@ export const DEFAULT_PREFS: Prefs = {
 export function readPrefs(): Prefs {
   try {
     const v = JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}');
+    // v6 defaults: QuickMenu on, quick-pinch fit-to-screen off (one-time migration)
+    if (v && typeof v === 'object' && !v.__v6) { v.quickMenu = true; v.gQuickPinch = false; v.__v6 = true; try { localStorage.setItem(PREFS_KEY, JSON.stringify(v)); } catch { /* ignore */ } }
     return { ...DEFAULT_PREFS, ...(v && typeof v === 'object' ? v : {}) };
   } catch { return { ...DEFAULT_PREFS }; }
 }
