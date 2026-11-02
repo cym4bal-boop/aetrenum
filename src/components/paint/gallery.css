@@ -29,8 +29,11 @@
   .pp-board > .pp-mcard, .pp-empty-anim { transition: none !important; animation: none !important; }
 }
 
-/* New canvas: the window takes the bottom half, a live preview of the chosen size fills the top half */
-.pp-nc-preview { position: fixed; left: 0; right: 0; top: 0; height: 50vh; z-index: 110; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; pointer-events: none; animation: pp-nc-in 260ms cubic-bezier(.2,.8,.2,1); }
-.pp-nc-frame { background: oklch(1 0 0); border-radius: 4px; box-shadow: 0 0 0 1px oklch(0 0 0 / .12), 0 18px 40px oklch(0 0 0 / .35); transition: width 220ms cubic-bezier(.2,.8,.2,1), height 220ms cubic-bezier(.2,.8,.2,1), aspect-ratio 220ms cubic-bezier(.2,.8,.2,1); max-width: 78vw; max-height: 36vh; }
-.pp-nc-label { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: oklch(1 0 0); padding: 5px 12px; border-radius: 999px; background: oklch(0 0 0 / .45); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
-@keyframes pp-nc-in { from { opacity: 0; transform: translateY(-12px) scale(.97); } to { opacity: 1; transform: none; } }
+/* One resizable window: the paper stays still while presets or custom fields scroll. */
+.pp-canvas-create.pp-sheet { z-index: 105; min-height: 0; }
+.pp-canvas-create .pp-sheet-head { margin-bottom: 4px; }
+.pp-nc-preview { flex: 0 1 40%; min-height: 56px; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 4px 12px 12px; overflow: hidden; }
+.pp-nc-paper { display: block; flex: 1; min-height: 0; width: 100%; filter: drop-shadow(var(--pp-canvas-preview-shadow)); }
+.pp-nc-frame { fill: var(--pp-canvas-paper); }
+.pp-nc-label { flex: none; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--pp-subtle); }
+.pp-canvas-create .pp-nc-options, .pp-canvas-create .pp-custom { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--pp-slider) transparent; padding: 10px 2px 8px; }

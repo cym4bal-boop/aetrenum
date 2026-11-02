@@ -177,13 +177,13 @@ const defaultLibrary: BrushDef[] = [
   // Paints
   { ...base, id: 'round-brush', name: 'Round Brush', category: 'Paints', spacing: 0.04, hardness: 0.9, flow: 0.9, sizePressure: 0.7, taper: 0.5, maxSize: 120 },
   { ...base, id: 'flat-brush', name: 'Flat Brush', category: 'Paints', spacing: 0.03, hardness: 0.8, flow: 0.7, sizePressure: 0.2, roundness: 0.25, angle: 45, taper: 0.2, maxSize: 140 },
-  { ...base, id: 'wet-wash', name: 'Wet Wash', category: 'Paints', spacing: 0.05, hardness: 0.3, flow: 0.35, sizePressure: 0.5, opacityPressure: 0.7, grain: 0.2, maxSize: 220, wetEdges: 0.4 },
+  { ...base, id: 'wet-wash', name: 'Wet Wash', category: 'Paints', spacing: 0.05, hardness: 0.3, flow: 0.35, sizePressure: 0.5, opacityPressure: 0.7, grain: 0.2, maxSize: 220, wetEdges: 0.4, dilution: 0.35, pull: 0.45, charge: 0.8 },
   { ...base, id: 'fan-brush', name: 'Fan Brush', category: 'Paints', spacing: 0.05, hardness: 0.7, flow: 0.65, roundness: 0.15, angle: 0, grain: 0.6, maxSize: 150 },
   { ...base, id: 'stucco-acrylic', name: 'Stucco Acrylic', category: 'Paints', spacing: 0.03, hardness: 0.85, flow: 0.88, grain: 0.55, rotateRandom: true, maxSize: 130 },
 
   // Gouache
   { ...base, id: 'gouache', name: 'Gouache', category: 'Gouache', spacing: 0.05, hardness: 0.7, flow: 0.55, sizePressure: 0.4, opacityPressure: 0.4, grain: 0.45, roundness: 0.75, angle: 30, maxSize: 140 },
-  { ...base, id: 'wet-gouache', name: 'Wet Gouache', category: 'Gouache', spacing: 0.04, hardness: 0.55, flow: 0.65, sizePressure: 0.5, grain: 0.3, roundness: 0.85, maxSize: 150 },
+  { ...base, id: 'wet-gouache', name: 'Wet Gouache', category: 'Gouache', spacing: 0.04, hardness: 0.55, flow: 0.65, sizePressure: 0.5, grain: 0.3, roundness: 0.85, maxSize: 150, dilution: 0.15, pull: 0.5, charge: 0.9 },
   { ...base, id: 'dry-gouache', name: 'Dry Gouache', category: 'Gouache', spacing: 0.06, hardness: 0.82, flow: 0.75, grain: 0.7, rotateRandom: true, maxSize: 120 },
   { ...base, id: 'thick-gouache', name: 'Thick Gouache', category: 'Gouache', spacing: 0.03, hardness: 0.9, flow: 0.9, roundness: 0.4, angle: 40, maxSize: 135 },
   { ...base, id: 'opaque-gouache', name: 'Opaque Gouache', category: 'Gouache', spacing: 0.03, hardness: 0.95, flow: 1, sizePressure: 0.3, maxSize: 125 },

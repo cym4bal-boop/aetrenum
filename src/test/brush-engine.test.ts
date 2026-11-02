@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { brushComposite, mixPaint, renderModeFactor, seededRng } from '@/components/paint/brushes';
+import { brushComposite, getBrushDef, mixPaint, renderModeFactor, seededRng } from '@/components/paint/brushes';
 import { DEFAULT_PREFS } from '@/components/paint/settings';
 
 it('replays identical randomness for the same seed (end taper keeps the stroke)', () => {
@@ -22,6 +22,12 @@ it('pulls the picked-up colour into the paint by the pull amount', () => {
   expect(mixPaint('#000000', '#ffffff', 0)).toBe('#000000');
   expect(mixPaint('#000000', null, 1)).toBe('#000000');
   expect(mixPaint('#000000', '#ffffff', 0.5)).toBe('#808080');
+});
+it('gives wet wash and wet gouache mixing without wetting dry gouache', () => {
+  expect(getBrushDef('wet-wash')).toMatchObject({ dilution: 0.35, pull: 0.45, charge: 0.8 });
+  expect(getBrushDef('wet-gouache')).toMatchObject({ dilution: 0.15, pull: 0.5, charge: 0.9 });
+  expect(getBrushDef('dry-gouache').pull ?? 0).toBe(0);
+  expect(getBrushDef('dry-gouache').dilution ?? 0).toBe(0);
 });
 it('has Pocket gestures on by default except fit-to-screen pinch; QuickMenu on', () => {
   expect([DEFAULT_PREFS.gTapUndo, DEFAULT_PREFS.gTapRedo, DEFAULT_PREFS.gScrubClear, DEFAULT_PREFS.gSwipeCopy, DEFAULT_PREFS.gFullscreen]).toEqual([true, true, true, true, true]);
