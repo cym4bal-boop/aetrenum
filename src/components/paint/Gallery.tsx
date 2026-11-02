@@ -624,21 +624,21 @@ function NewCanvasSheet({ onClose, onCreate }: { onClose: () => void; onCreate: 
   const [name, setName] = useState('Untitled Canvas');
   const [pv, setPv] = useState<{ w: number; h: number; label: string }>({ w: screen.width, h: screen.height, label: screen.label });
   const shown = custom ? { w: Math.max(1, Math.min(4096, Number(w) || 1)), h: Math.max(1, Math.min(4096, Number(h) || 1)), label: `${Number(w) || 0} × ${Number(h) || 0}px` } : pv;
-  const ar = shown.w / shown.h;
   const hover = (p: CanvasPreset) => setPv({ w: p.width, h: p.height, label: p.label });
 
   return (
-    <>
-    <div className="pp-nc-preview" aria-hidden="true">
-      <div className="pp-nc-frame" style={{ aspectRatio: `${shown.w} / ${shown.h}`, width: ar >= 1 ? 'min(78vw, calc(36vh * ' + ar.toFixed(4) + '))' : 'auto', height: ar < 1 ? 'min(36vh, calc(78vw / ' + ar.toFixed(4) + '))' : 'auto' }} />
-      <div className="pp-nc-label">{shown.label}</div>
-    </div>
-    <Sheet onClose={onClose} dim label="New canvas" className="pp-sheet-inset pp-newcanvas" height="50vh">
+    <Sheet onClose={onClose} dim label="New canvas" className="pp-sheet-inset pp-newcanvas pp-canvas-create" height="50dvh">
       <div className="pp-sheet-head">
         <h2>{custom ? 'Custom canvas' : 'New canvas'}</h2>
         <Button variant="paint" size="paint" type="button" className="pp-circle-btn" aria-label={custom ? 'Back to presets' : 'Custom canvas'} onClick={() => setCustom((c) => !c)}>
           {custom ? <span className="pp-x">✕</span> : <CardGlyph />}
         </Button>
+      </div>
+      <div className="pp-nc-preview" aria-label="Canvas preview">
+        <svg className="pp-nc-paper" viewBox={`0 0 ${shown.w} ${shown.h}`} role="img" aria-label={`${shown.w} by ${shown.h} white canvas`}>
+          <rect className="pp-nc-frame" width={shown.w} height={shown.h} />
+        </svg>
+        <div className="pp-nc-label">{shown.label}</div>
       </div>
       {custom ? (
         <form className="pp-custom" onSubmit={(e) => { e.preventDefault(); onCreate(Number(w) || 2048, Number(h) || 2048, name); }}>
@@ -651,7 +651,7 @@ function NewCanvasSheet({ onClose, onCreate }: { onClose: () => void; onCreate: 
           <Button variant="paint" size="paint" type="submit" className="pp-primary">Create</Button>
         </form>
       ) : (
-        <div className="pp-sheet-scroll">
+        <div className="pp-sheet-scroll pp-nc-options">
           <div className="pp-group">
             <PresetRow p={screen} onPreview={() => hover(screen)} onClick={() => onCreate(screen.width, screen.height)} />
           </div>
@@ -661,7 +661,6 @@ function NewCanvasSheet({ onClose, onCreate }: { onClose: () => void; onCreate: 
         </div>
       )}
     </Sheet>
-    </>
   );
 }
 
