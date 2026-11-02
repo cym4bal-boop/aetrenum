@@ -1,5 +1,10 @@
 # Roadmap
 
+## Current request
+- [ ] Add appropriate wet mixing defaults to painting brushes and verify them.
+- [ ] Put a white canvas preview inside the new canvas window, with only options scrolling.
+- [ ] Match thin reference size/opacity sliders and remove duplicate value popups.
+
 ## Round 4
 - [x] Gallery: Delete Undo History, stacks keep each canvas's own size, delete/empty animations
 - [x] History: faster saving, 10,000 steps kept
