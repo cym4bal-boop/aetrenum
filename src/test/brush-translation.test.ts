@@ -82,3 +82,24 @@ it('pack brushes only pay for canvas pickup when they are wet and keep angle jit
   expect(b.shapeScatter).toBe(0.5);
   expect(b.grain).toBe(0);
 });
+
+it('enables colour pickup for supplied wet brushes using either smudge key', () => {
+  for (const name of ['Flat Oil', 'Wet Gouache', 'Wet Marker', 'Wet Pastel', 'Wet Stucco Roller']) {
+    const preset = presets.find((p) => p.data['display-name'] === name);
+    if (!preset) throw new Error(`Missing ${name}`);
+    const brush = translateCustomJsonBrush(preset.data);
+    expect(brush.pull).toBeGreaterThan(0);
+  }
+  expect(translateCustomJsonBrush({ 'blend-properties': { 'mix-wet': true, smudge: 1 } }).pull).toBe(0.6);
+  expect(translateCustomJsonBrush({ 'blend-properties': { 'mix-wet': true, 'smudge-amount': 0.5 } }).pull).toBe(0.3);
+});
+
+it('keeps supplied dry tools, pixels, and fills non-mixing', () => {
+  for (const name of ['2B Pencil', 'Oil Pastel', 'Pixel Pen', 'Solid Fill', 'Checker Fill']) {
+    const preset = presets.find((p) => p.data['display-name'] === name);
+    if (!preset) throw new Error(`Missing ${name}`);
+    const brush = translateCustomJsonBrush(preset.data);
+    expect(brush.pull).toBe(0);
+    expect(brush.dilution).toBe(0);
+  }
+});

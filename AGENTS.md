@@ -10,6 +10,8 @@
 <!-- LOVABLE:END -->
 
 ## Paint app rules
+- The new-canvas window owns a fixed preview and a separate scrollable options region; use the shared Sheet resize behavior so the paper never scrolls away.
+- Custom JSON wet-mix pickup resolves both smudge-amount and smudge, gated by mix-wet, so wet presets mix without adding pickup costs to dry tools.
 - The layers bar is always placed with left/top in screen px and scales from its top-left corner; size maths use base width x pinch scale, never a mid-transition bounding box (keeps the drag box equal to the visible bar).
 - Selected-state highlights in the paint UI are drawn with `::before` because a global reset strips backgrounds from `.pp-button`.
 - Gallery startup only reads saved artworks and never seeds canvases; deleted ids are tombstoned and never-opened empty records are purged on read, so a late autosave or old build can't resurrect a canvas.

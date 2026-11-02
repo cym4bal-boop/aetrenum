@@ -330,7 +330,7 @@ export function translateCustomJsonBrush(data: Record<string, any>, rawName = 'C
     grainInverted: !!tex['invert'],
     wetEdges: c01(n(stroke['wet-edges'], 0)),
     dilution: wet ? c01(n(blend['mix-in dilution'], 0)) : 0,
-    pull: wet ? c01(n(blend['smudge-amount'], 0)) * 0.6 : 0,
+    pull: wet ? c01(n(blend['smudge-amount'] ?? blend['smudge'], 0)) * 0.6 : 0,
     smudge: 0,
     streamline: isPixel ? 0 : Math.round(c01(n(stroke['lazy-stroke'], 0)) * 100),
     ...(isPixel ? { pixel: true, spacing: 0.1, hardness: 1, taper: 0, taperSize: 0, sizePressure: 0, opacityPressure: 0, grain: 0, grainImage: undefined, minSize: 1 } : {}),
