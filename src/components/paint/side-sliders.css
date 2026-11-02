@@ -1,7 +1,7 @@
 /* Reference-sized capsules with a single persistent percentage circle. */
 .pp-bslider {
   --knob: 22px; --inset: 3px;
-  position: relative; width: 28px; touch-action: none; cursor: ns-resize; outline: none; border-radius: 999px;
+  position: relative; width: 38px; touch-action: none; cursor: ns-resize; outline: none; border-radius: 999px;
   contain: layout style;
 }
 .pp-bslider::before {
